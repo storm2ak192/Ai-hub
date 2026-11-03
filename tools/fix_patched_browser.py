@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post-process patched BrowserScreen.kt for compile safety + OAuth completion."""
+"""Post-process patched BrowserScreen.kt for compile safety + OAuth + speed."""
 from pathlib import Path
 
 p = Path("app/src/main/java/com/example/ui/screens/BrowserScreen.kt")
@@ -22,7 +22,7 @@ for line in t.splitlines(keepends=True):
     cleaned.append(line)
 t = "".join(cleaned)
 
-# Strengthen solution-2: allow redirects + auth callback hosts (e.g. auth.grokusercontent.com)
+# OAuth redirect + auth host allowlist
 old_google_check = '''                                    val targetHost = UrlSecurityValidator.extractNormalizedHost(targetStr)
                                     val isGoogleLogin = targetHost == "accounts.google.com" ||
                                         (targetHost != null && targetHost.endsWith("google.com") &&
@@ -40,11 +40,9 @@ new_google_check = '''                                    // Always allow HTTP r
                                     }
                                     val targetHost = UrlSecurityValidator.extractNormalizedHost(targetStr) ?: ""
                                     val lowerUrl = targetStr.lowercase()
-                                    // Google login pages stay in the same WebView
                                     val isGoogleLogin = targetHost == "accounts.google.com" ||
                                         (targetHost.endsWith("google.com") &&
                                             ("oauth" in lowerUrl || "servicelogin" in lowerUrl || "signin" in lowerUrl))
-                                    // Auth callback / SSO intermediate hosts (e.g. auth.grokusercontent.com/set-cookie)
                                     val isAuthCallback =
                                         targetHost.startsWith("auth.") ||
                                         targetHost.endsWith("grokusercontent.com") ||
@@ -61,8 +59,37 @@ new_google_check = '''                                    // Always allow HTTP r
 if old_google_check in t:
     t = t.replace(old_google_check, new_google_check, 1)
     print("OK: OAuth redirect + auth host allowlist")
+elif "isAuthCallback" in t:
+    print("OK: auth allowlist already")
 else:
     print("WARN: google login check block not found")
+
+# Extra WebView speed settings after LAYER_TYPE_HARDWARE block if present
+if "offscreenPreRaster" not in t and "LAYER_TYPE_HARDWARE" in t:
+    old_speed = (
+        "mainWv.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)\n"
+        "                        mainWv.settings.domStorageEnabled = true\n"
+        "                        mainWv.settings.loadsImagesAutomatically = true\n"
+        "                        mainWv.settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT"
+    )
+    new_speed = (
+        "mainWv.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)\n"
+        "                        mainWv.settings.domStorageEnabled = true\n"
+        "                        mainWv.settings.databaseEnabled = true\n"
+        "                        mainWv.settings.loadsImagesAutomatically = true\n"
+        "                        mainWv.settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT\n"
+        "                        mainWv.settings.setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)\n"
+        "                        if (android.os.Build.VERSION.SDK_INT >= 23) {\n"
+        "                            mainWv.settings.offscreenPreRaster = true\n"
+        "                        }\n"
+        "                        android.webkit.CookieManager.getInstance().setAcceptCookie(true)\n"
+        "                        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(mainWv, true)"
+    )
+    if old_speed in t:
+        t = t.replace(old_speed, new_speed, 1)
+        print("OK: extra WebView speed")
+    else:
+        print("WARN: speed block pattern missing")
 
 p.write_text(t, encoding="utf-8")
 print("braces", t.count("{"), t.count("}"))
