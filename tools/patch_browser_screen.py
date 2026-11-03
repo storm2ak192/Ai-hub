@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safe patches for BrowserScreen.kt (status bar, drag direction, speed, OAuth)."""
+"""Safe patches for BrowserScreen.kt."""
 from pathlib import Path
 
 path = Path("app/src/main/java/com/example/ui/screens/BrowserScreen.kt")
@@ -34,7 +34,7 @@ if old_inset in text:
 else:
     print("WARN: status bar pattern missing")
 
-# 2) Imports for drag
+# 2) Imports
 if "detectDragGestures" not in text:
     text = text.replace(
         "import androidx.compose.foundation.background\n",
@@ -65,12 +65,12 @@ if "roundToInt" not in text:
         "import java.io.File\nimport kotlin.math.roundToInt\n",
         1,
     )
-if "KeyboardArrowDown" not in text:
+if "KeyboardArrowRight" not in text:
     text = text.replace(
         "import androidx.compose.material.icons.filled.Home\n",
         "import androidx.compose.material.icons.filled.Home\n"
-        "import androidx.compose.material.icons.filled.KeyboardArrowDown\n"
-        "import androidx.compose.material.icons.filled.KeyboardArrowUp\n",
+        "import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft\n"
+        "import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight\n",
         1,
     )
 print("OK: imports")
@@ -90,7 +90,7 @@ if "fabMenuExpanded" not in text:
     else:
         print("WARN: isFullScreen state not found")
 
-# 4) Draggable modifier on FAB row (correct direction for RTL)
+# 4) Draggable modifier
 old_mod = (
     ".align(Alignment.TopEnd)\n"
     "                        .windowInsetsPadding(WindowInsets.statusBars)\n"
@@ -117,70 +117,7 @@ if old_mod in text:
 else:
     print("WARN: FAB modifier block not found")
 
-# 5) Add collapse toggle button before closing of FAB Row (after exit fullscreen FAB)
-old_exit = (
-    "SmallFloatingActionButton(\n"
-    "                        onClick = { isFullScreen = false },\n"
-    "                        shape = CircleShape,\n"
-    "                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),\n"
-    "                        elevation = FloatingActionButtonDefaults.elevation(4.dp),\n"
-    "                        modifier = Modifier.testTag(\"browser_exit_fullscreen_btn\")\n"
-    "                    ) {\n"
-    "                        Icon(Icons.Filled.FullscreenExit, contentDescription = strings.browserExitFullscreen)\n"
-    "                    }"
-)
-new_exit = (
-    "if (fabMenuExpanded) {\n"
-    "                        SmallFloatingActionButton(\n"
-    "                            onClick = onReturnHome,\n"
-    "                            shape = CircleShape,\n"
-    "                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),\n"
-    "                            elevation = FloatingActionButtonDefaults.elevation(4.dp)\n"
-    "                        ) {\n"
-    "                            Icon(Icons.Filled.Home, contentDescription = strings.browserHome)\n"
-    "                        }\n"
-    "                        SmallFloatingActionButton(\n"
-    "                            onClick = { onToggleDesktopMode(site) },\n"
-    "                            shape = CircleShape,\n"
-    "                            containerColor = if (site.desktopMode) {\n"
-    "                                MaterialTheme.colorScheme.primaryContainer\n"
-    "                            } else {\n"
-    "                                MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)\n"
-    "                            },\n"
-    "                            elevation = FloatingActionButtonDefaults.elevation(4.dp),\n"
-    "                            modifier = Modifier.testTag(\"browser_fullscreen_desktop_btn\")\n"
-    "                        ) {\n"
-    "                            Icon(\n"
-    "                                imageVector = Icons.Filled.DesktopWindows,\n"
-    "                                contentDescription = strings.browserDesktopMode,\n"
-    "                                tint = if (site.desktopMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface\n"
-    "                            )\n"
-    "                        }\n"
-    "                        SmallFloatingActionButton(\n"
-    "                            onClick = { isFullScreen = false },\n"
-    "                            shape = CircleShape,\n"
-    "                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),\n"
-    "                            elevation = FloatingActionButtonDefaults.elevation(4.dp),\n"
-    "                            modifier = Modifier.testTag(\"browser_exit_fullscreen_btn\")\n"
-    "                        ) {\n"
-    "                            Icon(Icons.Filled.FullscreenExit, contentDescription = strings.browserExitFullscreen)\n"
-    "                        }\n"
-    "                    }\n"
-    "                    SmallFloatingActionButton(\n"
-    "                        onClick = { fabMenuExpanded = !fabMenuExpanded },\n"
-    "                        shape = CircleShape,\n"
-    "                        containerColor = MaterialTheme.colorScheme.primaryContainer,\n"
-    "                        elevation = FloatingActionButtonDefaults.elevation(6.dp)\n"
-    "                    ) {\n"
-    "                        Icon(\n"
-    "                            imageVector = if (fabMenuExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,\n"
-    "                            contentDescription = \"Toggle controls\",\n"
-    "                            tint = MaterialTheme.colorScheme.primary\n"
-    "                        )\n"
-    "                    }"
-)
-
-# The original row has three FABs; replace the whole three-FAB content carefully
+# 5) FAB row with high-contrast colors + left/right arrows
 old_row_body = (
     "SmallFloatingActionButton(\n"
     "                        onClick = onReturnHome,\n"
@@ -217,11 +154,77 @@ old_row_body = (
     "                        Icon(Icons.Filled.FullscreenExit, contentDescription = strings.browserExitFullscreen)\n"
     "                    }"
 )
+
+new_row_body = (
+    "if (fabMenuExpanded) {\n"
+    "                        SmallFloatingActionButton(\n"
+    "                            onClick = onReturnHome,\n"
+    "                            shape = CircleShape,\n"
+    "                            containerColor = Color(0xFF1E88E5),\n"
+    "                            contentColor = Color.White,\n"
+    "                            elevation = FloatingActionButtonDefaults.elevation(6.dp)\n"
+    "                        ) {\n"
+    "                            Icon(Icons.Filled.Home, contentDescription = strings.browserHome, tint = Color.White)\n"
+    "                        }\n"
+    "                        SmallFloatingActionButton(\n"
+    "                            onClick = { onToggleDesktopMode(site) },\n"
+    "                            shape = CircleShape,\n"
+    "                            containerColor = if (site.desktopMode) Color(0xFF43A047) else Color(0xFF546E7A),\n"
+    "                            contentColor = Color.White,\n"
+    "                            elevation = FloatingActionButtonDefaults.elevation(6.dp),\n"
+    "                            modifier = Modifier.testTag(\"browser_fullscreen_desktop_btn\")\n"
+    "                        ) {\n"
+    "                            Icon(\n"
+    "                                imageVector = Icons.Filled.DesktopWindows,\n"
+    "                                contentDescription = strings.browserDesktopMode,\n"
+    "                                tint = Color.White\n"
+    "                            )\n"
+    "                        }\n"
+    "                        SmallFloatingActionButton(\n"
+    "                            onClick = { isFullScreen = false },\n"
+    "                            shape = CircleShape,\n"
+    "                            containerColor = Color(0xFFE53935),\n"
+    "                            contentColor = Color.White,\n"
+    "                            elevation = FloatingActionButtonDefaults.elevation(6.dp),\n"
+    "                            modifier = Modifier.testTag(\"browser_exit_fullscreen_btn\")\n"
+    "                        ) {\n"
+    "                            Icon(Icons.Filled.FullscreenExit, contentDescription = strings.browserExitFullscreen, tint = Color.White)\n"
+    "                        }\n"
+    "                    }\n"
+    "                    SmallFloatingActionButton(\n"
+    "                        onClick = { fabMenuExpanded = !fabMenuExpanded },\n"
+    "                        shape = CircleShape,\n"
+    "                        containerColor = Color(0xFFFFB300),\n"
+    "                        contentColor = Color.Black,\n"
+    "                        elevation = FloatingActionButtonDefaults.elevation(8.dp)\n"
+    "                    ) {\n"
+    "                        Icon(\n"
+    "                            imageVector = if (fabMenuExpanded) Icons.AutoMirrored.Filled.KeyboardArrowLeft else Icons.AutoMirrored.Filled.KeyboardArrowRight,\n"
+    "                            contentDescription = \"Toggle controls\",\n"
+    "                            tint = Color.Black\n"
+    "                        )\n"
+    "                    }"
+)
+
 if old_row_body in text:
-    text = text.replace(old_row_body, new_exit, 1)
-    print("OK: collapse toggle FABs")
+    text = text.replace(old_row_body, new_row_body, 1)
+    print("OK: FAB colors + arrows")
 else:
     print("WARN: FAB row body not found")
+
+# Ensure Color import
+if "import androidx.compose.ui.graphics.Color\n" not in text:
+    text = text.replace(
+        "import androidx.compose.ui.graphics.Brush\n",
+        "import androidx.compose.ui.graphics.Brush\nimport androidx.compose.ui.graphics.Color\n",
+        1,
+    )
+    if "import androidx.compose.ui.graphics.Color\n" not in text:
+        text = text.replace(
+            "import androidx.compose.ui.Alignment\n",
+            "import androidx.compose.ui.Alignment\nimport androidx.compose.ui.graphics.Color\n",
+            1,
+        )
 
 # 6) WebView speed
 if "LAYER_TYPE_HARDWARE" not in text:
@@ -239,8 +242,9 @@ if "LAYER_TYPE_HARDWARE" not in text:
     else:
         print("WARN: WebView factory not found")
 
-# 7) Google OAuth -> accounts.google.com in WebView
-old_oauth = (
+# 7) Do NOT intercept OAuth — let WebView open the real Google login URL
+# Remove any previous loadUrl accounts.google.com intercept if present; base file uses Custom Tab.
+old_oauth_custom = (
     "if (request.isForMainFrame &&\n"
     "                                    UrlSecurityValidator.isFederatedOAuthChallenge(targetStr, currentSite.url)\n"
     "                                ) {\n"
@@ -248,7 +252,7 @@ old_oauth = (
     "                                    return true\n"
     "                                }"
 )
-new_oauth = (
+old_oauth_load = (
     "if (request.isForMainFrame &&\n"
     "                                    UrlSecurityValidator.isFederatedOAuthChallenge(targetStr, currentSite.url)\n"
     "                                ) {\n"
@@ -256,11 +260,12 @@ new_oauth = (
     "                                    return true\n"
     "                                }"
 )
-if old_oauth in text:
-    text = text.replace(old_oauth, new_oauth)
-    print("OK: OAuth in-app")
-else:
-    print("WARN: OAuth pattern not found")
+# isFederatedOAuthChallenge always false now, but still remove intercept for clarity
+for old_o in (old_oauth_custom, old_oauth_load):
+    if old_o in text:
+        text = text.replace(old_o, "// OAuth: allow WebView to navigate to Google login pages directly")
+        print("OK: removed OAuth intercept")
 
 path.write_text(text, encoding="utf-8")
 print("Final lines:", text.count("\n") + 1)
+print("braces", text.count("{"), text.count("}"))
