@@ -1,7 +1,7 @@
 name: Build Release APK
 
 on:
-  workflow_dispatch:  # تشغيل يدوي من الهاتف
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,7 +18,9 @@ jobs:
           distribution: 'temurin'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
       - name: Generate temporary keystore for Release
         run: |
@@ -32,14 +34,6 @@ jobs:
             -keypass android123 \
             -dname "CN=AI Hub, OU=Mobile, O=AIHub, L=Cairo, ST=Cairo, C=EG"
 
-      - name: Make gradlew executable (if exists)
-        run: |
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-          else
-            echo "gradlew not found, will use gradle command"
-          fi
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -49,10 +43,12 @@ jobs:
           STORE_PASSWORD: android123
           KEY_PASSWORD: android123
         run: |
-          if [ -f gradlew ]; then
-            ./gradlew assembleRelease --stacktrace
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleRelease --stacktrace --no-daemon
           else
-            gradle assembleRelease --stacktrace
+            echo "No gradlew found, using gradle directly..."
+            gradle assembleRelease --stacktrace --no-daemon
           fi
 
       - name: Upload Release APK
