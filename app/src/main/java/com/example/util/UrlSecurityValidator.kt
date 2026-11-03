@@ -91,23 +91,13 @@ object UrlSecurityValidator {
     }
 
     /**
-     * Detects whether a URL is a strict OAuth / federated SSO challenge page that blocks embedded WebViews
-     * (such as accounts.google.com/o/oauth2, appleid.apple.com/auth)
-     * so we can seamlessly launch Chrome Custom Tabs for secure login without bypassing site security.
+     * Previously forced Google/Apple OAuth into Chrome Custom Tabs.
+     * Now returns false so login happens INSIDE the app WebView as requested by the user.
+     * This keeps cookies and session inside the isolated profile so login survives restarts.
      */
     fun isFederatedOAuthChallenge(url: String, currentSiteUrl: String): Boolean {
-        val targetHost = extractNormalizedHost(url) ?: return false
-        val baseHost = extractNormalizedHost(currentSiteUrl) ?: ""
-
-        if (targetHost == "accounts.google.com" && !baseHost.endsWith("google.com")) {
-            val lower = url.lowercase(Locale.US)
-            if (lower.contains("/o/oauth2") || lower.contains("/signin/oauth")) {
-                return true
-            }
-        }
-        if (targetHost == "appleid.apple.com" && url.lowercase(Locale.US).contains("/auth/authorize")) {
-            return true
-        }
+        // User explicitly requested login to stay inside the app.
+        // Returning false keeps the OAuth flow in the same WebView / profile.
         return false
     }
 }
