@@ -85,32 +85,10 @@ object UrlSecurityValidator {
     }
 
     /**
-     * Detects Google / Apple OAuth pages so we open them in Chrome Custom Tab
-     * (Google blocks login inside embedded WebViews).
-     * After the user finishes login and returns, the app reloads the site to pick up the session.
+     * Disabled: Google/Apple login must load inside the shared WebView session.
+     * Intercepting and opening Custom Tabs or a different URL broke navigation
+     * (address bar changed without loading the page).
+     * Always return false so the WebView navigates to the full OAuth URL itself.
      */
-    fun isFederatedOAuthChallenge(url: String, currentSiteUrl: String): Boolean {
-        val targetHost = extractNormalizedHost(url) ?: return false
-        val baseHost = extractNormalizedHost(currentSiteUrl) ?: ""
-
-        // Google OAuth
-        if (targetHost == "accounts.google.com" && !baseHost.endsWith("google.com")) {
-            val lower = url.lowercase(Locale.US)
-            if (lower.contains("/o/oauth2") ||
-                lower.contains("/signin") ||
-                lower.contains("/servicelogin") ||
-                lower.contains("oauth") ||
-                lower.contains("identifier")
-            ) {
-                return true
-            }
-        }
-
-        // Apple ID
-        if (targetHost == "appleid.apple.com" && url.lowercase(Locale.US).contains("/auth")) {
-            return true
-        }
-
-        return false
-    }
+    fun isFederatedOAuthChallenge(url: String, currentSiteUrl: String): Boolean = false
 }
