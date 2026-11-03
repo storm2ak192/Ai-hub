@@ -42,10 +42,8 @@ class HubRepository(
     val languageFlow: Flow<AppLanguage> = settingsDataStore.languageFlow
 
     /**
-     * Self-healing default site seeder:
-     * Ensures all 7 built-in AI sites (ChatGPT, Gemini, Grok, Qwen, DeepSeek, Claude, Perplexity)
-     * are present whenever they haven't been explicitly deleted by the user — recovering automatically
-     * even if the local SQLite database was previously reset while DataStore preferences remained.
+     * Ensures default AI sites exist. Google Accounts is always forced present
+     * (cannot be permanently removed).
      */
     suspend fun ensureDefaultSitesSeeded() {
         val currentSites = siteDao.getAllSitesSnapshot()
@@ -53,16 +51,26 @@ class HubRepository(
         val deletedDefaultIds = settingsDataStore.getDeletedDefaultIds()
 
         val missingDefaults = DefaultSitesSeed.getDefaultSites().filter { defaultSite ->
-            defaultSite.id !in existingIds && defaultSite.id !in deletedDefaultIds
+            if (defaultSite.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID) {
+                defaultSite.id !in existingIds
+            } else {
+                defaultSite.id !in existingIds && defaultSite.id !in deletedDefaultIds
+            }
         }
 
         if (missingDefaults.isNotEmpty()) {
             if (currentSites.isEmpty()) {
                 siteDao.insertSitesIgnoreExisting(missingDefaults)
             } else {
+                // Put Google Accounts at sortOrder 0 if missing; others after max
+                val hasGoogle = existingIds.contains(DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID)
                 val maxSort = currentSites.maxOfOrNull { it.sortOrder } ?: -1
                 val adjusted = missingDefaults.mapIndexed { idx, site ->
-                    site.copy(sortOrder = maxSort + 1 + idx)
+                    if (site.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID && !hasGoogle) {
+                        site.copy(sortOrder = 0)
+                    } else {
+                        site.copy(sortOrder = maxSort + 1 + idx)
+                    }
                 }
                 siteDao.insertSitesIgnoreExisting(adjusted)
             }
@@ -101,7 +109,7 @@ class HubRepository(
             isEnabled = true,
             sortOrder = nextSortOrder,
             isDefault = false,
-            profileKey = "profile_custom_$uniqueSuffix",
+            profileKey = "aihub_shared_session",
             javaScriptEnabled = javaScriptEnabled,
             allowCamera = allowCamera,
             allowMicrophone = allowMicrophone,
@@ -122,10 +130,14 @@ class HubRepository(
     }
 
     suspend fun toggleEnabled(site: SiteEntity) {
+        // Google Accounts cannot be disabled
+        if (site.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID) return
         siteDao.updateSite(site.copy(isEnabled = !site.isEnabled))
     }
 
     suspend fun deleteSite(site: SiteEntity) {
+        // Permanent: Google Accounts site can never be deleted
+        if (site.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID) return
         if (site.isDefault) {
             settingsDataStore.markDefaultSiteDeleted(site.id)
         }
@@ -153,7 +165,6 @@ class HubRepository(
         val existingById = currentSites.associateBy { it.id }
         val defaults = DefaultSitesSeed.getDefaultSites()
 
-        // Re-enable any existing default sites that may have been disabled
         val disabledDefaultsToEnable = defaults.mapNotNull { def ->
             val existing = existingById[def.id]
             if (existing != null && !existing.isEnabled) existing.copy(isEnabled = true) else null
@@ -162,7 +173,6 @@ class HubRepository(
             siteDao.updateSites(disabledDefaultsToEnable)
         }
 
-        // Insert any missing default sites
         val missingDefaults = defaults.filter { it.id !in existingById.keys }
         if (missingDefaults.isNotEmpty()) {
             val maxSort = currentSites.maxOfOrNull { it.sortOrder } ?: -1
@@ -219,7 +229,7 @@ class HubRepository(
             siteDao.insertSites(payload.sites.mapIndexed { idx, site ->
                 site.copy(
                     sortOrder = idx,
-                    profileKey = site.profileKey.ifBlank { "profile_${site.id}" }
+                    profileKey = site.profileKey.ifBlank { "aihub_shared_session" }
                 )
             })
             true
