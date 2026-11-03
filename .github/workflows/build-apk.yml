@@ -11,190 +11,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore BrowserScreen + status bar fix + draggable FABs
+      - name: Restore and patch BrowserScreen
         run: |
-          curl -sL "https://raw.githubusercontent.com/storm2ak192/Ai-hub/c50019ac166993f2b3c1e36d43ec170481fb1d42/app/src/main/java/com/example/ui/screens/BrowserScreen.kt" \
-            -o app/src/main/java/com/example/ui/screens/BrowserScreen.kt
-
-          python3 << 'PY'
-          path = "app/src/main/java/com/example/ui/screens/BrowserScreen.kt"
-          with open(path) as f:
-              text = f.read()
-
-          # 1) Status bar inset fix
-          old_inset = """// Main WebView Container: adapts dynamically to system navigation bar AND on-screen keyboard\n        Box(\n            modifier = Modifier\n                .weight(1f)\n                .fillMaxWidth()\n                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))\n        ) {"""
-          new_inset = """// Main WebView Container: always respect status bar (top) + navigation bar (bottom) + keyboard\n        Box(\n            modifier = Modifier\n                .weight(1f)\n                .fillMaxWidth()\n                .windowInsetsPadding(\n                    WindowInsets.statusBars\n                        .union(WindowInsets.navigationBars)\n                        .union(WindowInsets.ime)\n                )\n        ) {"""
-          if old_inset in text:
-              text = text.replace(old_inset, new_inset, 1)
-              print("OK: status bar fix")
-          else:
-              print("WARN: status bar pattern missing")
-
-          # 2) Imports for drag
-          if "detectDragGestures" not in text:
-              text = text.replace(
-                  "import androidx.compose.foundation.background\n",
-                  "import androidx.compose.foundation.background\nimport androidx.compose.foundation.gestures.detectDragGestures\n",
-                  1,
-              )
-          if "import androidx.compose.foundation.layout.offset\n" not in text:
-              text = text.replace(
-                  "import androidx.compose.foundation.layout.padding\n",
-                  "import androidx.compose.foundation.layout.offset\nimport androidx.compose.foundation.layout.padding\n",
-                  1,
-              )
-          if "pointerInput" not in text:
-              text = text.replace(
-                  "import androidx.compose.ui.Modifier\n",
-                  "import androidx.compose.ui.input.pointer.pointerInput\nimport androidx.compose.ui.modifier\n",
-                  1,
-              )
-          if "IntOffset" not in text:
-              text = text.replace(
-                  "import androidx.compose.ui.unit.dp\n",
-                  "import androidx.compose.ui.unit.IntOffset\nimport androidx.compose.ui.unit.dp\n",
-                  1,
-              )
-          if "roundToInt" not in text:
-              text = text.replace(
-                  "import java.io.File\n",
-                  "import java.io.File\nimport kotlin.math.roundToInt\n",
-                  1,
-              )
-          print("OK: drag imports")
-
-          # 3) State for FAB drag offset
-          if "fabOffsetX" not in text:
-              old_fs = "var isFullScreen by remember { mutableStateOf(false) }"
-              new_fs = """var isFullScreen by remember { mutableStateOf(false) }
-    var fabOffsetX by remember { mutableStateOf(0f) }
-    var fabOffsetY by remember { mutableStateOf(0f) }"""
-              if old_fs in text:
-                  text = text.replace(old_fs, new_fs, 1)
-                  print("OK: fab offset state")
-              else:
-                  print("WARN: isFullScreen state not found")
-
-          # 4) Replace fixed Row of FABs with draggable panel
-          old_fabs = """if (isFullScreen) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SmallFloatingActionButton(
-                        onClick = onReturnHome,
-                        shape = CircleShape,
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        elevation = FloatingActionButtonDefaults.elevation(4.dp)
-                    ) {
-                        Icon(Icons.Filled.Home, contentDescription = strings.browserHome)
-                    }
-                    SmallFloatingActionButton(
-                        onClick = { onToggleDesktopMode(site) },
-                        shape = CircleShape,
-                        containerColor = if (site.desktopMode) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-                        },
-                        elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                        modifier = Modifier.testTag("browser_fullscreen_desktop_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.DesktopWindows,
-                            contentDescription = strings.browserDesktopMode,
-                            tint = if (site.desktopMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    SmallFloatingActionButton(
-                        onClick = { isFullScreen = false },
-                        shape = CircleShape,
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                        modifier = Modifier.testTag("browser_exit_fullscreen_btn")
-                    ) {
-                        Icon(Icons.Filled.FullscreenExit, contentDescription = strings.browserExitFullscreen)
-                    }
-                }
-            }"""
-
-          new_fabs = """if (isFullScreen) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .padding(12.dp)
-                        .offset { IntOffset(fabOffsetX.roundToInt(), fabOffsetY.roundToInt()) }
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, dragAmount ->
-                                change.consume()
-                                fabOffsetX += dragAmount.x
-                                fabOffsetY += dragAmount.y
-                            }
-                        },
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SmallFloatingActionButton(
-                        onClick = onReturnHome,
-                        shape = CircleShape,
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        elevation = FloatingActionButtonDefaults.elevation(4.dp)
-                    ) {
-                        Icon(Icons.Filled.Home, contentDescription = strings.browserHome)
-                    }
-                    SmallFloatingActionButton(
-                        onClick = { onToggleDesktopMode(site) },
-                        shape = CircleShape,
-                        containerColor = if (site.desktopMode) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-                        },
-                        elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                        modifier = Modifier.testTag("browser_fullscreen_desktop_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.DesktopWindows,
-                            contentDescription = strings.browserDesktopMode,
-                            tint = if (site.desktopMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    SmallFloatingActionButton(
-                        onClick = { isFullScreen = false },
-                        shape = CircleShape,
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                        modifier = Modifier.testTag("browser_exit_fullscreen_btn")
-                    ) {
-                        Icon(Icons.Filled.FullscreenExit, contentDescription = strings.browserExitFullscreen)
-                    }
-                }
-            }"""
-
-          if old_fabs in text:
-              text = text.replace(old_fabs, new_fabs, 1)
-              print("OK: draggable FABs")
-          else:
-              print("WARN: FAB block not found")
-
-          with open(path, "w") as f:
-              f.write(text)
-          print("Final lines:", text.count(chr(10)) + 1)
-          PY
+          curl -sL "https://raw.githubusercontent.com/storm2ak192/Ai-hub/c50019ac166993f2b3c1e36d43ec170481fb1d42/app/src/main/java/com/example/ui/screens/BrowserScreen.kt" -o app/src/main/java/com/example/ui/screens/BrowserScreen.kt
+          python3 tools/patch_browser_screen.py
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          java-version: "17"
+          distribution: "temurin"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools'
+          packages: "platform-tools"
 
       - name: Generate temporary keystore for Release
         run: |
@@ -217,13 +48,8 @@ jobs:
           STORE_PASSWORD: android123
           KEY_PASSWORD: android123
         run: |
-          if [ -f ./gradlew ]; then
-            chmod +x ./gradlew
-            ./gradlew assembleRelease --stacktrace --no-daemon
-          else
-            echo "No gradlew found, using gradle directly..."
-            gradle assembleRelease --stacktrace --no-daemon
-          fi
+          chmod +x ./gradlew || true
+          ./gradlew assembleRelease --stacktrace --no-daemon
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
