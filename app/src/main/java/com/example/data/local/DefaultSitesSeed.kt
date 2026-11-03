@@ -1,7 +1,24 @@
 package com.example.data.local
 
 object DefaultSitesSeed {
+
+    const val GOOGLE_ACCOUNTS_SITE_ID = "site_google_accounts"
+
     fun getDefaultSites(): List<SiteEntity> = listOf(
+        SiteEntity(
+            id = GOOGLE_ACCOUNTS_SITE_ID,
+            name = "Google Account",
+            url = "https://accounts.google.com",
+            description = "قم بتسجيل حساب جوجل هنا اولا ثم التسجيل به في المواقع",
+            iconUrl = "https://www.google.com/s2/favicons?domain_url=https://accounts.google.com&sz=128",
+            iconPreset = "google",
+            accentColorHex = 0xFFEA4335L,
+            isFavorite = true,
+            isEnabled = true,
+            sortOrder = 0,
+            isDefault = true,
+            profileKey = "aihub_shared_session"
+        ),
         SiteEntity(
             id = "site_chatgpt",
             name = "ChatGPT",
@@ -12,9 +29,9 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF10A37FL,
             isFavorite = true,
             isEnabled = true,
-            sortOrder = 0,
+            sortOrder = 1,
             isDefault = true,
-            profileKey = "profile_chatgpt"
+            profileKey = "aihub_shared_session"
         ),
         SiteEntity(
             id = "site_gemini",
@@ -26,9 +43,9 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF4F46E5L,
             isFavorite = true,
             isEnabled = true,
-            sortOrder = 1,
+            sortOrder = 2,
             isDefault = true,
-            profileKey = "profile_gemini"
+            profileKey = "aihub_shared_session"
         ),
         SiteEntity(
             id = "site_grok",
@@ -40,9 +57,9 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF334155L,
             isFavorite = false,
             isEnabled = true,
-            sortOrder = 2,
+            sortOrder = 3,
             isDefault = true,
-            profileKey = "profile_grok"
+            profileKey = "aihub_shared_session"
         ),
         SiteEntity(
             id = "site_qwen",
@@ -54,9 +71,9 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF6366F1L,
             isFavorite = false,
             isEnabled = true,
-            sortOrder = 3,
+            sortOrder = 4,
             isDefault = true,
-            profileKey = "profile_qwen"
+            profileKey = "aihub_shared_session"
         ),
         SiteEntity(
             id = "site_deepseek",
@@ -68,9 +85,9 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF2563EBL,
             isFavorite = true,
             isEnabled = true,
-            sortOrder = 4,
+            sortOrder = 5,
             isDefault = true,
-            profileKey = "profile_deepseek"
+            profileKey = "aihub_shared_session"
         ),
         SiteEntity(
             id = "site_claude",
@@ -82,9 +99,9 @@ object DefaultSitesSeed {
             accentColorHex = 0xFFD97706L,
             isFavorite = true,
             isEnabled = true,
-            sortOrder = 5,
+            sortOrder = 6,
             isDefault = true,
-            profileKey = "profile_claude"
+            profileKey = "aihub_shared_session"
         ),
         SiteEntity(
             id = "site_perplexity",
@@ -96,9 +113,9 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF0EA5E9L,
             isFavorite = false,
             isEnabled = true,
-            sortOrder = 6,
+            sortOrder = 7,
             isDefault = true,
-            profileKey = "profile_perplexity"
+            profileKey = "aihub_shared_session"
         )
     )
 }
