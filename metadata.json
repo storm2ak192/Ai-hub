@@ -1,0 +1,6 @@
+{
+  "name": "AI Hub",
+  "description": "منصة متكاملة تجمع مواقع الذكاء الاصطناعي والمواقع الإلكترونية في مكان واحد مع متصفح معزول الجلسات وإدارة متقدمة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

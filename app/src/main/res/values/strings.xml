@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">AI Hub</string>
+    <string name="cd_app_logo">AI Hub Logo</string>
+    <string name="cd_hero_banner">AI Hub Hero Banner</string>
+    <string name="cd_search_sites">Search websites</string>
+</resources>
