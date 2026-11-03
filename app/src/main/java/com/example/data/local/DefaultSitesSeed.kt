@@ -6,20 +6,6 @@ object DefaultSitesSeed {
 
     fun getDefaultSites(): List<SiteEntity> = listOf(
         SiteEntity(
-            id = GOOGLE_ACCOUNTS_SITE_ID,
-            name = "Google Account",
-            url = "https://accounts.google.com",
-            description = "قم بتسجيل حساب جوجل هنا اولا ثم التسجيل به في المواقع",
-            iconUrl = "https://www.google.com/s2/favicons?domain_url=https://accounts.google.com&sz=128",
-            iconPreset = "google",
-            accentColorHex = 0xFFEA4335L,
-            isFavorite = true,
-            isEnabled = true,
-            sortOrder = 0,
-            isDefault = true,
-            profileKey = "aihub_shared_session"
-        ),
-        SiteEntity(
             id = "site_chatgpt",
             name = "ChatGPT",
             url = "https://chatgpt.com",
@@ -29,7 +15,7 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF10A37FL,
             isFavorite = true,
             isEnabled = true,
-            sortOrder = 1,
+            sortOrder = 0,
             isDefault = true,
             profileKey = "aihub_shared_session"
         ),
@@ -43,7 +29,7 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF4F46E5L,
             isFavorite = true,
             isEnabled = true,
-            sortOrder = 2,
+            sortOrder = 1,
             isDefault = true,
             profileKey = "aihub_shared_session"
         ),
@@ -57,7 +43,7 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF334155L,
             isFavorite = false,
             isEnabled = true,
-            sortOrder = 3,
+            sortOrder = 2,
             isDefault = true,
             profileKey = "aihub_shared_session"
         ),
@@ -71,7 +57,7 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF6366F1L,
             isFavorite = false,
             isEnabled = true,
-            sortOrder = 4,
+            sortOrder = 3,
             isDefault = true,
             profileKey = "aihub_shared_session"
         ),
@@ -85,7 +71,7 @@ object DefaultSitesSeed {
             accentColorHex = 0xFF2563EBL,
             isFavorite = true,
             isEnabled = true,
-            sortOrder = 5,
+            sortOrder = 4,
             isDefault = true,
             profileKey = "aihub_shared_session"
         ),
@@ -99,7 +85,7 @@ object DefaultSitesSeed {
             accentColorHex = 0xFFD97706L,
             isFavorite = true,
             isEnabled = true,
-            sortOrder = 6,
+            sortOrder = 5,
             isDefault = true,
             profileKey = "aihub_shared_session"
         ),
@@ -111,6 +97,20 @@ object DefaultSitesSeed {
             iconUrl = "https://www.google.com/s2/favicons?domain_url=https://www.perplexity.ai&sz=128",
             iconPreset = "perplexity",
             accentColorHex = 0xFF0EA5E9L,
+            isFavorite = false,
+            isEnabled = true,
+            sortOrder = 6,
+            isDefault = true,
+            profileKey = "aihub_shared_session"
+        ),
+        SiteEntity(
+            id = GOOGLE_ACCOUNTS_SITE_ID,
+            name = "Google Account",
+            url = "https://accounts.google.com",
+            description = "قم بتسجيل حساب جوجل هنا اولا ثم التسجيل به في المواقع",
+            iconUrl = "https://www.google.com/s2/favicons?domain_url=https://accounts.google.com&sz=128",
+            iconPreset = "google",
+            accentColorHex = 0xFFEA4335L,
             isFavorite = false,
             isEnabled = true,
             sortOrder = 7,
