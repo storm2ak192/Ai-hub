@@ -73,6 +73,12 @@ if "KeyboardArrowRight" not in text:
         "import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight\n",
         1,
     )
+if "ExternalLinkMatch" not in text:
+    text = text.replace(
+        "import com.example.util.UrlSecurityValidator\n",
+        "import com.example.util.ExternalLinkMatch\nimport com.example.util.UrlSecurityValidator\n",
+        1,
+    )
 print("OK: imports")
 
 # 3) FAB state
@@ -87,8 +93,6 @@ if "fabMenuExpanded" not in text:
     if old_fs in text:
         text = text.replace(old_fs, new_fs, 1)
         print("OK: fab state")
-    else:
-        print("WARN: isFullScreen state not found")
 
 # 4) Draggable modifier
 old_mod = (
@@ -114,10 +118,8 @@ new_mod = (
 if old_mod in text:
     text = text.replace(old_mod, new_mod, 1)
     print("OK: draggable FABs")
-else:
-    print("WARN: FAB modifier block not found")
 
-# 5) FAB row with high-contrast colors + left/right arrows
+# 5) FAB colors + arrows
 old_row_body = (
     "SmallFloatingActionButton(\n"
     "                        onClick = onReturnHome,\n"
@@ -205,26 +207,16 @@ new_row_body = (
     "                        )\n"
     "                    }"
 )
-
 if old_row_body in text:
     text = text.replace(old_row_body, new_row_body, 1)
     print("OK: FAB colors + arrows")
-else:
-    print("WARN: FAB row body not found")
 
-# Ensure Color import
 if "import androidx.compose.ui.graphics.Color\n" not in text:
     text = text.replace(
-        "import androidx.compose.ui.graphics.Brush\n",
-        "import androidx.compose.ui.graphics.Brush\nimport androidx.compose.ui.graphics.Color\n",
+        "import androidx.compose.ui.Alignment\n",
+        "import androidx.compose.ui.Alignment\nimport androidx.compose.ui.graphics.Color\n",
         1,
     )
-    if "import androidx.compose.ui.graphics.Color\n" not in text:
-        text = text.replace(
-            "import androidx.compose.ui.Alignment\n",
-            "import androidx.compose.ui.Alignment\nimport androidx.compose.ui.graphics.Color\n",
-            1,
-        )
 
 # 6) WebView speed
 if "LAYER_TYPE_HARDWARE" not in text:
@@ -239,32 +231,96 @@ if "LAYER_TYPE_HARDWARE" not in text:
     if old_wv in text:
         text = text.replace(old_wv, new_wv, 1)
         print("OK: WebView speed")
-    else:
-        print("WARN: WebView factory not found")
 
-# 7) Do NOT intercept OAuth — let WebView open the real Google login URL
-# Remove any previous loadUrl accounts.google.com intercept if present; base file uses Custom Tab.
-old_oauth_custom = (
-    "if (request.isForMainFrame &&\n"
+# 7) Add routing callbacks to BrowserScreen signature
+old_sig = (
+    "fun BrowserScreen(\n"
+    "    site: SiteEntity,\n"
+    "    initialUrl: String,\n"
+    "    sessionManager: IsolatedSessionManager,\n"
+    "    onReturnHome: () -> Unit,\n"
+    "    onToggleDesktopMode: (SiteEntity) -> Unit,\n"
+    "    onUpdateZoomPercent: (SiteEntity, Int) -> Unit,\n"
+    "    onEditSitePermissions: (SiteEntity) -> Unit,\n"
+    "    onClearSiteSession: (SiteEntity, WebView?) -> Unit,\n"
+    "    onRecordHistory: (title: String, url: String) -> Unit,\n"
+    "    onDownloadEnqueued: (DownloadEntity) -> Unit,\n"
+    "    onShowMessage: (String) -> Unit,\n"
+    "    modifier: Modifier = Modifier\n"
+    ") {"
+)
+new_sig = (
+    "fun BrowserScreen(\n"
+    "    site: SiteEntity,\n"
+    "    initialUrl: String,\n"
+    "    sessionManager: IsolatedSessionManager,\n"
+    "    allSites: List<SiteEntity>,\n"
+    "    onOpenMatchedSite: (SiteEntity, String) -> Unit,\n"
+    "    onUnknownExternalUrl: (String) -> Unit,\n"
+    "    onReturnHome: () -> Unit,\n"
+    "    onToggleDesktopMode: (SiteEntity) -> Unit,\n"
+    "    onUpdateZoomPercent: (SiteEntity, Int) -> Unit,\n"
+    "    onEditSitePermissions: (SiteEntity) -> Unit,\n"
+    "    onClearSiteSession: (SiteEntity, WebView?) -> Unit,\n"
+    "    onRecordHistory: (title: String, url: String) -> Unit,\n"
+    "    onDownloadEnqueued: (DownloadEntity) -> Unit,\n"
+    "    onShowMessage: (String) -> Unit,\n"
+    "    modifier: Modifier = Modifier\n"
+    ") {"
+)
+if old_sig in text:
+    text = text.replace(old_sig, new_sig, 1)
+    print("OK: signature")
+else:
+    print("WARN: signature not found")
+
+# 8) shouldOverrideUrlLoading: route to matching site / dialog for unknown
+old_override = (
+    "// Respect strict federated SSO security (e.g., Google OAuth disallowed_useragent on third-party sites)\n"
+    "                                if (request.isForMainFrame &&\n"
     "                                    UrlSecurityValidator.isFederatedOAuthChallenge(targetStr, currentSite.url)\n"
     "                                ) {\n"
     "                                    BrowserDownloadAndAuthHelper.launchSecureExternalAuthTab(ctx, targetStr)\n"
     "                                    return true\n"
-    "                                }"
+    "                                }\n\n"
+    "                                return false"
 )
-old_oauth_load = (
-    "if (request.isForMainFrame &&\n"
-    "                                    UrlSecurityValidator.isFederatedOAuthChallenge(targetStr, currentSite.url)\n"
-    "                                ) {\n"
-    "                                    view?.loadUrl(\"https://accounts.google.com\")\n"
-    "                                    return true\n"
-    "                                }"
+
+new_override = (
+    "// Route main-frame navigations to the matching hub site (same session),\n"
+    "                                // e.g. Google OAuth -> Google Account site, chat link -> ChatGPT site.\n"
+    "                                if (request.isForMainFrame) {\n"
+    "                                    when (val match = UrlSecurityValidator.resolveExternalLink(targetStr, allSites)) {\n"
+    "                                        is ExternalLinkMatch.MatchedSite -> {\n"
+    "                                            if (match.site.id != currentSite.id) {\n"
+    "                                                onOpenMatchedSite(match.site, match.fullUrl)\n"
+    "                                                return true\n"
+    "                                            }\n"
+    "                                            // Same site: let WebView continue normally\n"
+    "                                        }\n"
+    "                                        is ExternalLinkMatch.UnmatchedValidUrl -> {\n"
+    "                                            val currentHost = UrlSecurityValidator.extractNormalizedHost(currentSite.url)\n"
+    "                                            if (currentHost != null && match.host != currentHost &&\n"
+    "                                                !match.host.endsWith(\".\" + currentHost) &&\n"
+    "                                                !currentHost.endsWith(\".\" + match.host)\n"
+    "                                            ) {\n"
+    "                                                onUnknownExternalUrl(match.fullUrl)\n"
+    "                                                return true\n"
+    "                                            }\n"
+    "                                        }\n"
+    "                                        is ExternalLinkMatch.BlockedInvalidUrl -> {\n"
+    "                                            return true\n"
+    "                                        }\n"
+    "                                    }\n"
+    "                                }\n\n"
+    "                                return false"
 )
-# isFederatedOAuthChallenge always false now, but still remove intercept for clarity
-for old_o in (old_oauth_custom, old_oauth_load):
-    if old_o in text:
-        text = text.replace(old_o, "// OAuth: allow WebView to navigate to Google login pages directly")
-        print("OK: removed OAuth intercept")
+
+if old_override in text:
+    text = text.replace(old_override, new_override, 1)
+    print("OK: in-app site routing")
+else:
+    print("WARN: shouldOverride OAuth block not found")
 
 path.write_text(text, encoding="utf-8")
 print("Final lines:", text.count("\n") + 1)
