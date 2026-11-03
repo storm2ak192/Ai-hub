@@ -26,7 +26,7 @@ if "DragHandle" not in text:
         "import androidx.compose.material.icons.filled.DragHandle\n",
         1,
     )
-if "graphics.graphicsLayer" not in text and "graphicsLayer" not in text:
+if "graphicsLayer" not in text:
     text = text.replace(
         "import androidx.compose.ui.Modifier\n",
         "import androidx.compose.ui.graphics.graphicsLayer\nimport androidx.compose.ui.Modifier\n",
@@ -40,7 +40,35 @@ if "mutableFloatStateOf" not in text:
     )
 print("OK: imports")
 
-# Signature: add onReorderSites
+# SettingsScreen top-level param
+old_ss = (
+    "    onMoveSiteOrder: (String, Boolean) -> Unit,\n"
+    "    onDeleteSite: (SiteEntity) -> Unit,\n"
+)
+new_ss = (
+    "    onMoveSiteOrder: (String, Boolean) -> Unit,\n"
+    "    onReorderSites: (Int, Int) -> Unit,\n"
+    "    onDeleteSite: (SiteEntity) -> Unit,\n"
+)
+if "onReorderSites: (Int, Int)" not in text and old_ss in text:
+    text = text.replace(old_ss, new_ss, 1)
+    print("OK: SettingsScreen param")
+
+# Call site
+old_call = (
+    "                onMoveOrder = onMoveSiteOrder,\n"
+    "                onClearSiteSession = onClearSingleSiteData,\n"
+)
+new_call = (
+    "                onMoveOrder = onMoveSiteOrder,\n"
+    "                onReorderSites = onReorderSites,\n"
+    "                onClearSiteSession = onClearSingleSiteData,\n"
+)
+if old_call in text and "onReorderSites = onReorderSites" not in text:
+    text = text.replace(old_call, new_call, 1)
+    print("OK: call site")
+
+# ManageSitesSubScreen signature
 old_sig = (
     "    onMoveOrder: (String, Boolean) -> Unit,\n"
     "    onClearSiteSession: (SiteEntity) -> Unit,\n"
@@ -56,15 +84,11 @@ new_sig = (
     "    modifier: Modifier = Modifier\n"
     ") {"
 )
-if "onReorderSites" not in text and old_sig in text:
+if old_sig in text:
     text = text.replace(old_sig, new_sig, 1)
-    print("OK: signature")
-elif "onReorderSites" in text:
-    print("OK: signature already")
-else:
-    print("WARN: signature pattern missing")
+    print("OK: ManageSites signature")
 
-# Local drag state after strings =
+# Local drag state
 if "var dragFromIndex" not in text:
     old_col = (
         "    val strings = LocalAppStrings.current\n\n"
@@ -76,13 +100,15 @@ if "var dragFromIndex" not in text:
         "    var dragOffsetY by remember { mutableFloatStateOf(0f) }\n\n"
         "    Column(\n"
     )
-    if old_col in text:
-        text = text.replace(old_col, new_col, 1)
+    # Only in ManageSites - first occurrence after ManageSitesSubScreen is the right one
+    idx = text.find("fun ManageSitesSubScreen")
+    if idx != -1 and old_col in text[idx:]:
+        text = text[:idx] + text[idx:].replace(old_col, new_col, 1)
         print("OK: drag state")
     else:
         print("WARN: drag state insert point missing")
 
-# Card modifier with drag
+# Card drag modifier — only the ManageSites card pattern (first after ManageSites)
 old_card = (
     "                Card(\n"
     "                    shape = MaterialTheme.shapes.medium,\n"
@@ -116,12 +142,9 @@ new_card = (
     "                                onDragEnd = {\n"
     "                                    val from = dragFromIndex\n"
     "                                    if (from != null) {\n"
-    "                                        // ~1 card ≈ 120px; convert drag distance to index delta\n"
     "                                        val delta = (dragOffsetY / 120f).toInt()\n"
     "                                        val to = (from + delta).coerceIn(0, sites.lastIndex)\n"
-    "                                        if (to != from) {\n"
-    "                                            onReorderSites(from, to)\n"
-    "                                        }\n"
+    "                                        if (to != from) onReorderSites(from, to)\n"
     "                                    }\n"
     "                                    dragFromIndex = null\n"
     "                                    dragOffsetY = 0f\n"
@@ -134,13 +157,14 @@ new_card = (
     "                        }\n"
     "                ) {"
 )
-if old_card in text:
-    text = text.replace(old_card, new_card, 1)
+idx = text.find("fun ManageSitesSubScreen")
+if idx != -1 and old_card in text[idx:]:
+    text = text[:idx] + text[idx:].replace(old_card, new_card, 1)
     print("OK: card drag")
 else:
     print("WARN: card pattern missing")
 
-# Replace up/down buttons with drag handle hint (keep optional arrows? user wants long press drag - replace with handle)
+# Replace up/down with drag handle
 old_btns = (
     "                            IconButton(\n"
     "                                onClick = { onMoveOrder(site.id, true) },\n"
