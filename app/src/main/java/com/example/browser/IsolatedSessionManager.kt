@@ -15,23 +15,28 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Session manager for AI Hub.
+ * Shared session manager — isolation DISABLED.
  *
- * Isolation is DISABLED so Google (and other) logins are shared across all sites.
- * All WebViews use the same cookie jar / shared profile so an account logged in
- * on one site is available on the others.
+ * All sites share one cookie jar so a Google account logged in on any site
+ * appears on the other sites as well. Cookies are flushed to disk so the
+ * session survives app restarts.
  */
 class IsolatedSessionManager(
     private val settingsDataStore: SettingsDataStore
 ) {
     private val mutex = Mutex()
 
-    /** Shared profile key used by every site (no isolation). */
     private val SHARED_PROFILE = "aihub_shared_session"
 
+    private val GOOGLE_ORIGINS = listOf(
+        "https://accounts.google.com",
+        "https://google.com",
+        "https://www.google.com",
+        "https://myaccount.google.com"
+    )
+
     /**
-     * Attaches the WebView to the shared session profile and enables cookies
-     * (including third-party cookies required for Google OAuth).
+     * Attach every WebView to the same shared profile and accept third-party cookies.
      */
     suspend fun attachIsolatedProfile(webView: WebView, site: SiteEntity) = mutex.withLock {
         val savedCookies = settingsDataStore.loadProfileCookieVault(SHARED_PROFILE)
@@ -49,38 +54,36 @@ class IsolatedSessionManager(
                     val cm = CookieManager.getInstance()
                     cm.setAcceptCookie(true)
                     cm.setAcceptThirdPartyCookies(webView, true)
-
-                    if (!savedCookies.isNullOrBlank()) {
-                        val origins = listOfNotNull(
-                            extractOrigin(site.url),
-                            "https://accounts.google.com",
-                            "https://google.com",
-                            "https://www.google.com"
-                        ).distinct()
-                        savedCookies.split(";").map { it.trim() }.filter { it.isNotEmpty() }.forEach { pair ->
-                            origins.forEach { origin ->
-                                try {
-                                    cm.setCookie(origin, pair)
-                                } catch (_: Exception) {
-                                }
-                            }
-                        }
-                        cm.flush()
-                    }
+                    restoreCookies(cm, site, savedCookies)
                 }
             } catch (_: Throwable) {
                 try {
                     val cm = CookieManager.getInstance()
                     cm.setAcceptCookie(true)
                     cm.setAcceptThirdPartyCookies(webView, true)
+                    restoreCookies(cm, site, savedCookies)
                 } catch (_: Throwable) {
                 }
             }
         }
     }
 
+    private fun restoreCookies(cm: CookieManager, site: SiteEntity, savedCookies: String?) {
+        if (savedCookies.isNullOrBlank()) return
+        val origins = (GOOGLE_ORIGINS + listOfNotNull(extractOrigin(site.url))).distinct()
+        savedCookies.split(";").map { it.trim() }.filter { it.isNotEmpty() }.forEach { pair ->
+            origins.forEach { origin ->
+                try {
+                    cm.setCookie(origin, pair)
+                } catch (_: Exception) {
+                }
+            }
+        }
+        cm.flush()
+    }
+
     /**
-     * Flushes cookies so logins survive app restarts and stay shared across sites.
+     * Flush shared cookies to disk (Google + current site) so login survives restart.
      */
     suspend fun persistActiveSession(site: SiteEntity) = mutex.withLock {
         var cookiesToSave: String? = null
@@ -88,20 +91,15 @@ class IsolatedSessionManager(
         withContext(Dispatchers.Main.immediate) {
             try {
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
-                    val profile = ProfileStore.getInstance().getProfile(SHARED_PROFILE)
-                    profile?.cookieManager?.flush()
-                } else {
-                    val cm = CookieManager.getInstance()
-                    val origins = listOf(
-                        "https://accounts.google.com",
-                        "https://google.com",
-                        "https://www.google.com"
-                    ) + listOfNotNull(extractOrigin(site.url))
-                    cookiesToSave = origins.distinct().mapNotNull { origin ->
-                        cm.getCookie(origin)?.takeIf { it.isNotBlank() }
-                    }.joinToString("; ")
-                    cm.flush()
+                    ProfileStore.getInstance().getProfile(SHARED_PROFILE)?.cookieManager?.flush()
                 }
+
+                val cm = CookieManager.getInstance()
+                val origins = (GOOGLE_ORIGINS + listOfNotNull(extractOrigin(site.url))).distinct()
+                cookiesToSave = origins.mapNotNull { origin ->
+                    cm.getCookie(origin)?.takeIf { it.isNotBlank() }
+                }.joinToString("; ")
+                cm.flush()
             } catch (_: Throwable) {
             }
         }
@@ -112,14 +110,13 @@ class IsolatedSessionManager(
     }
 
     /**
-     * Clears cache/history for the current WebView only.
-     * Does NOT wipe shared Google cookies so other sites stay logged in.
+     * Clears only the current site's DOM storage/cache.
+     * Shared Google cookies are kept so other sites stay logged in.
      */
     suspend fun clearSiteDataOnly(site: SiteEntity, activeWebView: WebView? = null) = mutex.withLock {
         withContext(Dispatchers.Main.immediate) {
             try {
-                val origin = extractOrigin(site.url)
-                if (origin != null) {
+                extractOrigin(site.url)?.let { origin ->
                     try {
                         WebStorage.getInstance().deleteOrigin(origin)
                     } catch (_: Throwable) {
