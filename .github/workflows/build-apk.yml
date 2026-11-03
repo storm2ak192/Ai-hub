@@ -48,8 +48,13 @@ jobs:
           STORE_PASSWORD: android123
           KEY_PASSWORD: android123
         run: |
-          chmod +x ./gradlew || true
-          ./gradlew assembleRelease --stacktrace --no-daemon
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleRelease --stacktrace --no-daemon
+          else
+            echo "gradlew not found, using system gradle"
+            gradle assembleRelease --stacktrace --no-daemon
+          fi
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
