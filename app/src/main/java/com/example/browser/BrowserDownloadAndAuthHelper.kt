@@ -22,11 +22,6 @@ import java.net.URLDecoder
 
 object BrowserDownloadAndAuthHelper {
 
-    /**
-     * Enqueues a real system file download via Android's DownloadManager for HTTP/HTTPS URLs
-     * (forwarding the site's isolated Cookie header & User-Agent), AND supports direct `data:` URI
-     * exports (e.g., generated images, Markdown, JSON, or code exports from AI chat apps).
-     */
     fun enqueueDownload(
         context: Context,
         site: SiteEntity,
@@ -89,7 +84,7 @@ object BrowserDownloadAndAuthHelper {
             val commaIndex = dataUrl.indexOf(',')
             if (commaIndex == -1) return null
 
-            val header = dataUrl.substring(5, commaIndex) // after "data:"
+            val header = dataUrl.substring(5, commaIndex)
             val payload = dataUrl.substring(commaIndex + 1)
             val isBase64 = header.contains(";base64", ignoreCase = true)
             val detectedMime = header.substringBefore(';').ifBlank {
@@ -150,20 +145,24 @@ object BrowserDownloadAndAuthHelper {
     }
 
     /**
-     * Opens a secure Chrome Custom Tab when federated SSO providers (e.g., Google OAuth)
-     * enforce `disallowed_useragent` in embedded WebViews, respecting website security policies
-     * and returning smoothly to AI Hub afterward.
+     * Opens Google/Apple OAuth in a Chrome Custom Tab (secure & accepted by Google).
+     * After the user finishes login and presses Back/X, they return to AI Hub.
+     * The calling screen should reload the WebView on resume to pick up the session.
      */
     fun launchSecureExternalAuthTab(context: Context, url: String) {
         try {
             val customTabsIntent = CustomTabsIntent.Builder()
                 .setShowTitle(true)
+                .setUrlBarHidingEnabled(false)
+                .setShareState(CustomTabsIntent.SHARE_STATE_OFF)
                 .build()
+            customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
             customTabsIntent.launchUrl(context, url.toUri())
         } catch (_: Exception) {
             try {
                 val browserIntent = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
                 }
                 context.startActivity(browserIntent)
             } catch (_: Exception) {
