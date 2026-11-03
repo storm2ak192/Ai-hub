@@ -34,9 +34,10 @@ class IsolatedSessionManager(
      * (including third-party cookies required for Google OAuth).
      */
     suspend fun attachIsolatedProfile(webView: WebView, site: SiteEntity) = mutex.withLock {
+        val savedCookies = settingsDataStore.loadProfileCookieVault(SHARED_PROFILE)
+
         withContext(Dispatchers.Main.immediate) {
             try {
-                // Prefer a single shared Multi-Profile when available
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
                     WebViewCompat.setProfile(webView, SHARED_PROFILE)
                     val profile = ProfileStore.getInstance().getOrCreateProfile(SHARED_PROFILE)
@@ -45,26 +46,18 @@ class IsolatedSessionManager(
                         setAcceptThirdPartyCookies(webView, true)
                     }
                 } else {
-                    // Fallback: global CookieManager (shared by nature)
                     val cm = CookieManager.getInstance()
                     cm.setAcceptCookie(true)
                     cm.setAcceptThirdPartyCookies(webView, true)
 
-                    // Restore any previously saved shared cookies
-                    val saved = kotlinx.coroutines.runBlocking {
-                        settingsDataStore.loadProfileCookieVault(SHARED_PROFILE)
-                    }
-                    if (!saved.isNullOrBlank()) {
+                    if (!savedCookies.isNullOrBlank()) {
                         val origins = listOfNotNull(
                             extractOrigin(site.url),
                             "https://accounts.google.com",
                             "https://google.com",
-                            "https://www.google.com",
-                            "https://chatgpt.com",
-                            "https://claude.ai",
-                            "https://gemini.google.com"
+                            "https://www.google.com"
                         ).distinct()
-                        saved.split(";").map { it.trim() }.filter { it.isNotEmpty() }.forEach { pair ->
+                        savedCookies.split(";").map { it.trim() }.filter { it.isNotEmpty() }.forEach { pair ->
                             origins.forEach { origin ->
                                 try {
                                     cm.setCookie(origin, pair)
@@ -90,6 +83,8 @@ class IsolatedSessionManager(
      * Flushes cookies so logins survive app restarts and stay shared across sites.
      */
     suspend fun persistActiveSession(site: SiteEntity) = mutex.withLock {
+        var cookiesToSave: String? = null
+
         withContext(Dispatchers.Main.immediate) {
             try {
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
@@ -102,24 +97,23 @@ class IsolatedSessionManager(
                         "https://google.com",
                         "https://www.google.com"
                     ) + listOfNotNull(extractOrigin(site.url))
-                    val allCookies = origins.distinct().mapNotNull { origin ->
+                    cookiesToSave = origins.distinct().mapNotNull { origin ->
                         cm.getCookie(origin)?.takeIf { it.isNotBlank() }
                     }.joinToString("; ")
                     cm.flush()
-                    if (allCookies.isNotBlank()) {
-                        kotlinx.coroutines.runBlocking {
-                            settingsDataStore.saveProfileCookieVault(SHARED_PROFILE, allCookies)
-                        }
-                    }
                 }
             } catch (_: Throwable) {
             }
         }
+
+        if (!cookiesToSave.isNullOrBlank()) {
+            settingsDataStore.saveProfileCookieVault(SHARED_PROFILE, cookiesToSave!!)
+        }
     }
 
     /**
-     * Clears data for one site origin only (does not wipe the entire shared Google session
-     * unless the origin is a Google domain).
+     * Clears cache/history for the current WebView only.
+     * Does NOT wipe shared Google cookies so other sites stay logged in.
      */
     suspend fun clearSiteDataOnly(site: SiteEntity, activeWebView: WebView? = null) = mutex.withLock {
         withContext(Dispatchers.Main.immediate) {
@@ -131,7 +125,6 @@ class IsolatedSessionManager(
                     } catch (_: Throwable) {
                     }
                 }
-                // Do NOT call removeAllCookies() — that would log the user out of every site.
                 activeWebView?.clearCache(true)
                 activeWebView?.clearHistory()
                 activeWebView?.clearFormData()
