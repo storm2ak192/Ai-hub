@@ -11,15 +11,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore BrowserScreen.kt (status bar fix)
+      - name: Restore BrowserScreen.kt from last good commit + status bar fix
         run: |
-          if [ -f tools/BrowserScreen.kt.gz.b64 ]; then
-            base64 -d tools/BrowserScreen.kt.gz.b64 | gunzip > app/src/main/java/com/example/ui/screens/BrowserScreen.kt
-            echo "BrowserScreen.kt restored successfully"
-            wc -l app/src/main/java/com/example/ui/screens/BrowserScreen.kt
-          else
-            echo "WARNING: restore file missing"
-          fi
+          curl -sL "https://raw.githubusercontent.com/storm2ak192/Ai-hub/c50019ac166993f2b3c1e36d43ec170481fb1d42/app/src/main/java/com/example/ui/screens/BrowserScreen.kt" \
+            -o app/src/main/java/com/example/ui/screens/BrowserScreen.kt
+
+          python3 << 'PY'
+          path = "app/src/main/java/com/example/ui/screens/BrowserScreen.kt"
+          with open(path) as f:
+              text = f.read()
+          old = """// Main WebView Container: adapts dynamically to system navigation bar AND on-screen keyboard\n        Box(\n            modifier = Modifier\n                .weight(1f)\n                .fillMaxWidth()\n                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))\n        ) {"""
+          new = """// Main WebView Container: always respect status bar (top) + navigation bar (bottom) + keyboard\n        // so content never goes under the notification bar, even in fullscreen mode\n        Box(\n            modifier = Modifier\n                .weight(1f)\n                .fillMaxWidth()\n                .windowInsetsPadding(\n                    WindowInsets.statusBars\n                        .union(WindowInsets.navigationBars)\n                        .union(WindowInsets.ime)\n                )\n        ) {"""
+          if old in text:
+              text = text.replace(old, new, 1)
+              with open(path, "w") as f:
+                  f.write(text)
+              print("Status bar fix applied successfully")
+          else:
+              print("WARNING: pattern not found")
+          print("Lines:", text.count(chr(10))+1)
+          PY
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
