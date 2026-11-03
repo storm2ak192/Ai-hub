@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Patches for BrowserScreen.kt — Google OAuth solution 1 + gap fix."""
+"""BrowserScreen patches: solution 2 Google login + gap + FABs + non-Google routing."""
 from pathlib import Path
 
 path = Path("app/src/main/java/com/example/ui/screens/BrowserScreen.kt")
 text = path.read_text(encoding="utf-8")
 
 # ---------------------------------------------------------------------------
-# 1) WebView container insets:
-#    normal mode = navigationBars + ime only (no gap under top app bar)
-#    fullscreen  = statusBars + navigationBars + ime
+# 1) Gap fix: no statusBars in normal mode; keep in fullscreen
 # ---------------------------------------------------------------------------
 old_inset = (
     "// Main WebView Container: adapts dynamically to system navigation bar AND on-screen keyboard\n"
@@ -20,9 +18,7 @@ old_inset = (
     "        ) {"
 )
 new_inset = (
-    "// Main WebView Container:\n"
-    "        // Normal: no statusBars padding (TopAppBar already handles it) — removes the gap\n"
-    "        // Fullscreen: keep statusBars so content is not under the notification bar\n"
+    "// Main WebView Container: no extra gap under top bar in normal mode\n"
     "        Box(\n"
     "            modifier = Modifier\n"
     "                .weight(1f)\n"
@@ -115,48 +111,64 @@ if "fabMenuExpanded" not in text:
         print("OK: fab state")
 
 # ---------------------------------------------------------------------------
-# 4) Key session state by site.id so switching ChatGPT -> Google recreates WebView
+# 4) Chrome-like UA constants (no "wv" so Google is less likely to block)
 # ---------------------------------------------------------------------------
-old_profile_ready = "var isProfileReady by remember(site.profileKey) { mutableStateOf(false) }"
-new_profile_ready = "var isProfileReady by remember(site.id) { mutableStateOf(false) }"
-if old_profile_ready in text:
-    text = text.replace(old_profile_ready, new_profile_ready, 1)
-    print("OK: isProfileReady keyed by site.id")
-
-old_current_url = "var currentUrl by remember { mutableStateOf(initialUrl) }"
-new_current_url = "var currentUrl by remember(site.id, initialUrl) { mutableStateOf(initialUrl) }"
-if old_current_url in text:
-    text = text.replace(old_current_url, new_current_url, 1)
-    print("OK: currentUrl keyed by site.id + initialUrl")
-
-old_title = "var pageTitle by remember { mutableStateOf(site.name) }"
-new_title = "var pageTitle by remember(site.id) { mutableStateOf(site.name) }"
-if old_title in text:
-    text = text.replace(old_title, new_title, 1)
-    print("OK: pageTitle keyed by site.id")
-
-# ---------------------------------------------------------------------------
-# 5) AndroidView update block: when site/url changes, load the new URL
-#    Also key factory recreation via modifier testTag including site.id
-# ---------------------------------------------------------------------------
-old_av = (
-    "AndroidView(\n"
-    "                modifier = Modifier\n"
-    "                    .fillMaxSize()\n"
-    "                    .testTag(\"browser_webview\"),"
+old_desktop_ua = (
+    "private val DESKTOP_USER_AGENT =\n"
+    "    \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\""
 )
-new_av = (
-    "AndroidView(\n"
-    "                modifier = Modifier\n"
-    "                    .fillMaxSize()\n"
-    "                    .testTag(\"browser_webview_${site.id}\"),"
+new_desktop_ua = (
+    "private val DESKTOP_USER_AGENT =\n"
+    "    \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\"\n\n"
+    "/** Chrome mobile UA without the WebView marker (\"; wv\") that Google rejects. */\n"
+    "private val CHROME_MOBILE_USER_AGENT =\n"
+    "    \"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36\""
 )
-if old_av in text:
-    text = text.replace(old_av, new_av, 1)
-    print("OK: AndroidView tag includes site.id")
+if "CHROME_MOBILE_USER_AGENT" not in text and old_desktop_ua in text:
+    text = text.replace(old_desktop_ua, new_desktop_ua, 1)
+    print("OK: Chrome mobile UA constant")
 
-# Ensure update lambda reloads when initialUrl changes — find update = { wv ->
-# Many codebases use update = { }. We'll inject after factory load if needed.
+# ---------------------------------------------------------------------------
+# 5) applyDesktopAndZoomSettings: never use stock WebView UA with "wv"
+# ---------------------------------------------------------------------------
+old_ua_branch = (
+    "if (desktopMode) {\n"
+    "            userAgentString = DESKTOP_USER_AGENT\n"
+    "            useWideViewPort = true\n"
+    "            loadWithOverviewMode = true\n"
+    "            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL\n"
+    "        } else {\n"
+    "            userAgentString = defaultMobileUa ?: WebSettings.getDefaultUserAgent(webView.context)\n"
+    "            // In Mobile/Tablet Mode: disable overview shrinking so responsive pages render at natural 100% width\n"
+    "            useWideViewPort = true\n"
+    "            loadWithOverviewMode = false\n"
+    "            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL\n"
+    "        }"
+)
+new_ua_branch = (
+    "if (desktopMode) {\n"
+    "            userAgentString = DESKTOP_USER_AGENT\n"
+    "            useWideViewPort = true\n"
+    "            loadWithOverviewMode = true\n"
+    "            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL\n"
+    "        } else {\n"
+    "            // Prefer Chrome-like UA without \"; wv\" to reduce Google \"browser not secure\" errors\n"
+    "            val raw = defaultMobileUa ?: WebSettings.getDefaultUserAgent(webView.context)\n"
+    "            userAgentString = if (raw.contains(\"wv\", ignoreCase = true) || raw.contains(\"Version/4.0\")) {\n"
+    "                CHROME_MOBILE_USER_AGENT\n"
+    "            } else {\n"
+    "                raw\n"
+    "            }\n"
+    "            useWideViewPort = true\n"
+    "            loadWithOverviewMode = false\n"
+    "            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL\n"
+    "        }"
+)
+if old_ua_branch in text:
+    text = text.replace(old_ua_branch, new_ua_branch, 1)
+    print("OK: sanitized mobile UA")
+else:
+    print("WARN: UA branch not found")
 
 # ---------------------------------------------------------------------------
 # 6) Draggable FAB modifier
@@ -186,7 +198,7 @@ if old_mod in text:
     print("OK: draggable FABs")
 
 # ---------------------------------------------------------------------------
-# 7) FAB colors + collapse arrow
+# 7) FAB colors + arrows
 # ---------------------------------------------------------------------------
 old_row_body = (
     "SmallFloatingActionButton(\n"
@@ -224,7 +236,6 @@ old_row_body = (
     "                        Icon(Icons.Filled.FullscreenExit, contentDescription = strings.browserExitFullscreen)\n"
     "                    }"
 )
-
 new_row_body = (
     "if (fabMenuExpanded) {\n"
     "                        SmallFloatingActionButton(\n"
@@ -277,7 +288,7 @@ new_row_body = (
 )
 if old_row_body in text:
     text = text.replace(old_row_body, new_row_body, 1)
-    print("OK: FAB colors + arrows")
+    print("OK: FAB colors")
 
 # ---------------------------------------------------------------------------
 # 8) WebView speed
@@ -296,7 +307,7 @@ if "LAYER_TYPE_HARDWARE" not in text:
         print("OK: WebView speed")
 
 # ---------------------------------------------------------------------------
-# 9) Signature: allSites + routing callbacks
+# 9) Signature
 # ---------------------------------------------------------------------------
 old_sig = (
     "fun BrowserScreen(\n"
@@ -340,7 +351,10 @@ else:
     print("WARN: signature not found")
 
 # ---------------------------------------------------------------------------
-# 10) Solution 1: main-frame routing to matching hub site (full OAuth URL)
+# 10) Solution 2 routing:
+#     - accounts.google.com / Google OAuth -> stay in SAME WebView (return false)
+#     - other known hub sites -> open their card
+#     - unknown hosts -> dialog
 # ---------------------------------------------------------------------------
 old_override = (
     "// Respect strict federated SSO security (e.g., Google OAuth disallowed_useragent on third-party sites)\n"
@@ -354,8 +368,19 @@ old_override = (
 )
 
 new_override = (
-    "// Solution 1: Google OAuth / known sites open inside their hub card with the FULL url\n"
+    "// Solution 2: Google login stays in the SAME WebView (shared cookies).\n"
+    "                                // Other known AI sites still open in their hub card.\n"
     "                                if (request.isForMainFrame) {\n"
+    "                                    val targetHost = UrlSecurityValidator.extractNormalizedHost(targetStr)\n"
+    "                                    val isGoogleLogin = targetHost == \"accounts.google.com\" ||\n"
+    "                                        (targetHost != null && targetHost.endsWith(\"google.com\") &&\n"
+    "                                            (targetStr.contains(\"oauth\", true) ||\n"
+    "                                                targetStr.contains(\"ServiceLogin\", true) ||\n"
+    "                                                targetStr.contains(\"signin\", true)))\n"
+    "                                    if (isGoogleLogin) {\n"
+    "                                        // Let this WebView navigate — do not switch site / blank screen\n"
+    "                                        return false\n"
+    "                                    }\n"
     "                                    when (val match = UrlSecurityValidator.resolveExternalLink(targetStr, allSites)) {\n"
     "                                        is ExternalLinkMatch.MatchedSite -> {\n"
     "                                            if (match.site.id != currentSite.id) {\n"
@@ -381,12 +406,12 @@ new_override = (
 
 if old_override in text:
     text = text.replace(old_override, new_override, 1)
-    print("OK: solution-1 routing")
+    print("OK: solution-2 Google stays in WebView")
 else:
     print("WARN: shouldOverride block not found")
 
 # ---------------------------------------------------------------------------
-# 11) Popup OAuth: also route to Google Account site (not Custom Tab / blank)
+# 11) Popup: Google login also stays / loads in main flow via parent routing
 # ---------------------------------------------------------------------------
 old_popup = (
     "if (UrlSecurityValidator.isFederatedOAuthChallenge(u, currentSite.url)) {\n"
@@ -397,7 +422,18 @@ old_popup = (
     "                                            }"
 )
 new_popup = (
-    "when (val match = UrlSecurityValidator.resolveExternalLink(u, allSites)) {\n"
+    "val popupHost = UrlSecurityValidator.extractNormalizedHost(u)\n"
+    "                                            val popupIsGoogle = popupHost == \"accounts.google.com\" ||\n"
+    "                                                (popupHost != null && popupHost.endsWith(\"google.com\") &&\n"
+    "                                                    (u.contains(\"oauth\", true) || u.contains(\"signin\", true)))\n"
+    "                                            if (popupIsGoogle) {\n"
+    "                                                // Load Google login in the MAIN WebView (same session), close popup\n"
+    "                                                popupWebView?.destroy()\n"
+    "                                                popupWebView = null\n"
+    "                                                view?.loadUrl(u)\n"
+    "                                                return true\n"
+    "                                            }\n"
+    "                                            when (val match = UrlSecurityValidator.resolveExternalLink(u, allSites)) {\n"
     "                                                is ExternalLinkMatch.MatchedSite -> {\n"
     "                                                    if (match.site.id != currentSite.id) {\n"
     "                                                        popupWebView?.destroy()\n"
@@ -406,51 +442,35 @@ new_popup = (
     "                                                        return true\n"
     "                                                    }\n"
     "                                                }\n"
-    "                                                else -> { /* continue in popup */ }\n"
+    "                                                else -> { }\n"
     "                                            }"
 )
 if old_popup in text:
     text = text.replace(old_popup, new_popup, 1)
-    print("OK: popup routing to hub site")
+    print("OK: popup Google -> main WebView")
 else:
     print("WARN: popup OAuth block not found")
 
 # ---------------------------------------------------------------------------
-# 12) Force AndroidView to recreate when site.id changes using key()
+# 12) Persist cookies after page load (best-effort)
 # ---------------------------------------------------------------------------
-if "key(site.id)" not in text and "androidx.compose.runtime.key" not in text:
-    # Wrap AndroidView with key(site.id) { ... } — careful with braces
-    # Prefer adding import and key around AndroidView
-    if "import androidx.compose.runtime.key\n" not in text:
-        text = text.replace(
-            "import androidx.compose.runtime.getValue\n",
-            "import androidx.compose.runtime.getValue\nimport androidx.compose.runtime.key\n",
-            1,
-        )
-    marker = "AndroidView(\n                modifier = Modifier\n                    .fillMaxSize()\n                    .testTag(\"browser_webview_${site.id}\"),"
-    if marker in text:
-        text = text.replace(
-            marker,
-            "key(site.id, initialUrl) {\n            AndroidView(\n                modifier = Modifier\n                    .fillMaxSize()\n                    .testTag(\"browser_webview_${site.id}\"),",
-            1,
-        )
-        # Close the key block after AndroidView ends - find the spinner that follows
-        old_spinner = (
-            "// Initial Profile Attachment Spinner\n"
-            "            if (!isProfileReady) {"
-        )
-        new_spinner = (
-            "} // end key(site.id)\n\n"
-            "            // Initial Profile Attachment Spinner\n"
-            "            if (!isProfileReady) {"
-        )
-        if old_spinner in text:
-            text = text.replace(old_spinner, new_spinner, 1)
-            print("OK: key(site.id, initialUrl) around AndroidView")
-        else:
-            print("WARN: could not close key() block")
-    else:
-        print("WARN: AndroidView marker for key() not found")
+if "persistActiveSession(currentSite)" not in text:
+    old_finished = (
+        "override fun onPageFinished(view: WebView?, url: String?) {\n"
+        "                                super.onPageFinished(view, url)\n"
+        "                                isLoading = false"
+    )
+    new_finished = (
+        "override fun onPageFinished(view: WebView?, url: String?) {\n"
+        "                                super.onPageFinished(view, url)\n"
+        "                                isLoading = false\n"
+        "                                scope.launch {\n"
+        "                                    try { sessionManager.persistActiveSession(currentSite) } catch (_: Throwable) {}\n"
+        "                                }"
+    )
+    if old_finished in text:
+        text = text.replace(old_finished, new_finished, 1)
+        print("OK: persist session on page finished")
 
 path.write_text(text, encoding="utf-8")
 print("Final lines:", text.count("\n") + 1)
