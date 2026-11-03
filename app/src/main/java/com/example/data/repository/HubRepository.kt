@@ -42,35 +42,36 @@ class HubRepository(
     val languageFlow: Flow<AppLanguage> = settingsDataStore.languageFlow
 
     /**
-     * Ensures default AI sites exist. Google Accounts is always forced present
-     * (cannot be permanently removed).
+     * Ensures default AI sites exist. Restores Google Account URL if it drifted.
      */
     suspend fun ensureDefaultSitesSeeded() {
         val currentSites = siteDao.getAllSitesSnapshot()
         val existingIds = currentSites.map { it.id }.toSet()
         val deletedDefaultIds = settingsDataStore.getDeletedDefaultIds()
 
-        val missingDefaults = DefaultSitesSeed.getDefaultSites().filter { defaultSite ->
-            if (defaultSite.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID) {
-                defaultSite.id !in existingIds
-            } else {
-                defaultSite.id !in existingIds && defaultSite.id !in deletedDefaultIds
+        // Fix Google Account card URL if it was overwritten by an OAuth link
+        currentSites.firstOrNull { it.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID }?.let { google ->
+            if (google.url != "https://accounts.google.com") {
+                siteDao.updateSite(
+                    google.copy(
+                        url = "https://accounts.google.com",
+                        description = "قم بتسجيل حساب جوجل هنا اولا ثم التسجيل به في المواقع"
+                    )
+                )
             }
+        }
+
+        val missingDefaults = DefaultSitesSeed.getDefaultSites().filter { defaultSite ->
+            defaultSite.id !in existingIds && defaultSite.id !in deletedDefaultIds
         }
 
         if (missingDefaults.isNotEmpty()) {
             if (currentSites.isEmpty()) {
                 siteDao.insertSitesIgnoreExisting(missingDefaults)
             } else {
-                // Put Google Accounts at sortOrder 0 if missing; others after max
-                val hasGoogle = existingIds.contains(DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID)
                 val maxSort = currentSites.maxOfOrNull { it.sortOrder } ?: -1
                 val adjusted = missingDefaults.mapIndexed { idx, site ->
-                    if (site.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID && !hasGoogle) {
-                        site.copy(sortOrder = 0)
-                    } else {
-                        site.copy(sortOrder = maxSort + 1 + idx)
-                    }
+                    site.copy(sortOrder = maxSort + 1 + idx)
                 }
                 siteDao.insertSitesIgnoreExisting(adjusted)
             }
@@ -130,14 +131,10 @@ class HubRepository(
     }
 
     suspend fun toggleEnabled(site: SiteEntity) {
-        // Google Accounts cannot be disabled
-        if (site.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID) return
         siteDao.updateSite(site.copy(isEnabled = !site.isEnabled))
     }
 
     suspend fun deleteSite(site: SiteEntity) {
-        // Permanent: Google Accounts site can never be deleted
-        if (site.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID) return
         if (site.isDefault) {
             settingsDataStore.markDefaultSiteDeleted(site.id)
         }
@@ -171,6 +168,13 @@ class HubRepository(
         }
         if (disabledDefaultsToEnable.isNotEmpty()) {
             siteDao.updateSites(disabledDefaultsToEnable)
+        }
+
+        // Always restore Google URL if present
+        existingById[DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID]?.let { google ->
+            if (google.url != "https://accounts.google.com") {
+                siteDao.updateSite(google.copy(url = "https://accounts.google.com"))
+            }
         }
 
         val missingDefaults = defaults.filter { it.id !in existingById.keys }
