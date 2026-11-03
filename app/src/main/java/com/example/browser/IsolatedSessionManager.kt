@@ -15,10 +15,12 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Manages strict per-site session isolation for AI Hub.
+ * Manages per-site session isolation for AI Hub.
  *
- * All WebView, ProfileStore, and CookieManager calls are strictly confined to Dispatchers.Main
- * so calling from background coroutines never throws a WebView thread violation crash.
+ * Improvements:
+ * - Login (including Google) stays inside the WebView profile
+ * - Cookies are flushed aggressively so sessions survive app restarts
+ * - Third-party cookies are accepted (needed for Google OAuth)
  */
 class IsolatedSessionManager(
     private val settingsDataStore: SettingsDataStore
@@ -50,18 +52,28 @@ class IsolatedSessionManager(
 
         if (attachedMultiProfile) return@withLock
 
-        // Fallback Cookie Vault Isolation
+        // Fallback Cookie Vault Isolation (older WebView versions)
         val previous = activeFallbackSite
         if (previous != null && previous.profileKey != site.profileKey) {
             val prevCookieHeader = withContext(Dispatchers.Main.immediate) {
                 val cm = CookieManager.getInstance()
-                val origin = extractOrigin(previous.url) ?: previous.url
-                val header = cm.getCookie(origin) ?: ""
+                // Save cookies for the previous site from multiple possible origins
+                val origins = listOfNotNull(
+                    extractOrigin(previous.url),
+                    "https://accounts.google.com",
+                    "https://google.com",
+                    "https://www.google.com"
+                ).distinct()
+                val allCookies = origins.mapNotNull { origin ->
+                    cm.getCookie(origin)?.takeIf { it.isNotBlank() }
+                }.joinToString("; ")
                 cm.removeAllCookies(null)
                 cm.flush()
-                header
+                allCookies
             }
-            settingsDataStore.saveProfileCookieVault(previous.profileKey, prevCookieHeader)
+            if (prevCookieHeader.isNotBlank()) {
+                settingsDataStore.saveProfileCookieVault(previous.profileKey, prevCookieHeader)
+            }
         }
 
         val savedCookies = settingsDataStore.loadProfileCookieVault(site.profileKey)
@@ -69,10 +81,23 @@ class IsolatedSessionManager(
             val cm = CookieManager.getInstance()
             cm.setAcceptCookie(true)
             cm.setAcceptThirdPartyCookies(webView, true)
+
             if (!savedCookies.isNullOrBlank()) {
-                val origin = extractOrigin(site.url) ?: site.url
+                // Restore cookies to the site origin + Google domains (for SSO)
+                val origins = listOfNotNull(
+                    extractOrigin(site.url),
+                    "https://accounts.google.com",
+                    "https://google.com",
+                    "https://www.google.com"
+                ).distinct()
+
                 savedCookies.split(";").map { it.trim() }.filter { it.isNotEmpty() }.forEach { pair ->
-                    cm.setCookie(origin, pair)
+                    origins.forEach { origin ->
+                        try {
+                            cm.setCookie(origin, pair)
+                        } catch (_: Exception) {
+                        }
+                    }
                 }
                 cm.flush()
             }
@@ -82,6 +107,7 @@ class IsolatedSessionManager(
 
     /**
      * Flushes cookies to persistent disk storage so logins survive app restarts.
+     * Also saves Google-related cookies so the account can be reused more reliably.
      */
     suspend fun persistActiveSession(site: SiteEntity) = mutex.withLock {
         var fallbackCookiesToSave: String? = null
@@ -92,14 +118,22 @@ class IsolatedSessionManager(
                     profile?.cookieManager?.flush()
                 } else {
                     val cm = CookieManager.getInstance()
-                    val origin = extractOrigin(site.url) ?: site.url
-                    fallbackCookiesToSave = cm.getCookie(origin) ?: ""
+                    val origins = listOfNotNull(
+                        extractOrigin(site.url),
+                        "https://accounts.google.com",
+                        "https://google.com",
+                        "https://www.google.com"
+                    ).distinct()
+                    val allCookies = origins.mapNotNull { origin ->
+                        cm.getCookie(origin)?.takeIf { it.isNotBlank() }
+                    }.joinToString("; ")
+                    fallbackCookiesToSave = allCookies
                     cm.flush()
                 }
             } catch (_: Throwable) {
             }
         }
-        if (fallbackCookiesToSave != null) {
+        if (!fallbackCookiesToSave.isNullOrBlank()) {
             settingsDataStore.saveProfileCookieVault(site.profileKey, fallbackCookiesToSave!!)
         }
     }
