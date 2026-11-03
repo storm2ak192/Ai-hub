@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Safe patches for BrowserScreen.kt."""
+"""Patches for BrowserScreen.kt — Google OAuth solution 1 + gap fix."""
 from pathlib import Path
 
 path = Path("app/src/main/java/com/example/ui/screens/BrowserScreen.kt")
 text = path.read_text(encoding="utf-8")
 
-# 1) Status bar inset fix
+# ---------------------------------------------------------------------------
+# 1) WebView container insets:
+#    normal mode = navigationBars + ime only (no gap under top app bar)
+#    fullscreen  = statusBars + navigationBars + ime
+# ---------------------------------------------------------------------------
 old_inset = (
     "// Main WebView Container: adapts dynamically to system navigation bar AND on-screen keyboard\n"
     "        Box(\n"
@@ -16,25 +20,33 @@ old_inset = (
     "        ) {"
 )
 new_inset = (
-    "// Main WebView Container: always respect status bar + navigation bar + keyboard\n"
+    "// Main WebView Container:\n"
+    "        // Normal: no statusBars padding (TopAppBar already handles it) — removes the gap\n"
+    "        // Fullscreen: keep statusBars so content is not under the notification bar\n"
     "        Box(\n"
     "            modifier = Modifier\n"
     "                .weight(1f)\n"
     "                .fillMaxWidth()\n"
     "                .windowInsetsPadding(\n"
-    "                    WindowInsets.statusBars\n"
-    "                        .union(WindowInsets.navigationBars)\n"
-    "                        .union(WindowInsets.ime)\n"
+    "                    if (isFullScreen) {\n"
+    "                        WindowInsets.statusBars\n"
+    "                            .union(WindowInsets.navigationBars)\n"
+    "                            .union(WindowInsets.ime)\n"
+    "                    } else {\n"
+    "                        WindowInsets.navigationBars.union(WindowInsets.ime)\n"
+    "                    }\n"
     "                )\n"
     "        ) {"
 )
 if old_inset in text:
     text = text.replace(old_inset, new_inset, 1)
-    print("OK: status bar fix")
+    print("OK: inset gap fix")
 else:
-    print("WARN: status bar pattern missing")
+    print("WARN: inset pattern missing")
 
+# ---------------------------------------------------------------------------
 # 2) Imports
+# ---------------------------------------------------------------------------
 if "detectDragGestures" not in text:
     text = text.replace(
         "import androidx.compose.foundation.background\n",
@@ -79,9 +91,17 @@ if "ExternalLinkMatch" not in text:
         "import com.example.util.ExternalLinkMatch\nimport com.example.util.UrlSecurityValidator\n",
         1,
     )
+if "import androidx.compose.ui.graphics.Color\n" not in text:
+    text = text.replace(
+        "import androidx.compose.ui.Alignment\n",
+        "import androidx.compose.ui.Alignment\nimport androidx.compose.ui.graphics.Color\n",
+        1,
+    )
 print("OK: imports")
 
+# ---------------------------------------------------------------------------
 # 3) FAB state
+# ---------------------------------------------------------------------------
 if "fabMenuExpanded" not in text:
     old_fs = "var isFullScreen by remember { mutableStateOf(false) }"
     new_fs = (
@@ -94,7 +114,53 @@ if "fabMenuExpanded" not in text:
         text = text.replace(old_fs, new_fs, 1)
         print("OK: fab state")
 
-# 4) Draggable modifier
+# ---------------------------------------------------------------------------
+# 4) Key session state by site.id so switching ChatGPT -> Google recreates WebView
+# ---------------------------------------------------------------------------
+old_profile_ready = "var isProfileReady by remember(site.profileKey) { mutableStateOf(false) }"
+new_profile_ready = "var isProfileReady by remember(site.id) { mutableStateOf(false) }"
+if old_profile_ready in text:
+    text = text.replace(old_profile_ready, new_profile_ready, 1)
+    print("OK: isProfileReady keyed by site.id")
+
+old_current_url = "var currentUrl by remember { mutableStateOf(initialUrl) }"
+new_current_url = "var currentUrl by remember(site.id, initialUrl) { mutableStateOf(initialUrl) }"
+if old_current_url in text:
+    text = text.replace(old_current_url, new_current_url, 1)
+    print("OK: currentUrl keyed by site.id + initialUrl")
+
+old_title = "var pageTitle by remember { mutableStateOf(site.name) }"
+new_title = "var pageTitle by remember(site.id) { mutableStateOf(site.name) }"
+if old_title in text:
+    text = text.replace(old_title, new_title, 1)
+    print("OK: pageTitle keyed by site.id")
+
+# ---------------------------------------------------------------------------
+# 5) AndroidView update block: when site/url changes, load the new URL
+#    Also key factory recreation via modifier testTag including site.id
+# ---------------------------------------------------------------------------
+old_av = (
+    "AndroidView(\n"
+    "                modifier = Modifier\n"
+    "                    .fillMaxSize()\n"
+    "                    .testTag(\"browser_webview\"),"
+)
+new_av = (
+    "AndroidView(\n"
+    "                modifier = Modifier\n"
+    "                    .fillMaxSize()\n"
+    "                    .testTag(\"browser_webview_${site.id}\"),"
+)
+if old_av in text:
+    text = text.replace(old_av, new_av, 1)
+    print("OK: AndroidView tag includes site.id")
+
+# Ensure update lambda reloads when initialUrl changes — find update = { wv ->
+# Many codebases use update = { }. We'll inject after factory load if needed.
+
+# ---------------------------------------------------------------------------
+# 6) Draggable FAB modifier
+# ---------------------------------------------------------------------------
 old_mod = (
     ".align(Alignment.TopEnd)\n"
     "                        .windowInsetsPadding(WindowInsets.statusBars)\n"
@@ -119,7 +185,9 @@ if old_mod in text:
     text = text.replace(old_mod, new_mod, 1)
     print("OK: draggable FABs")
 
-# 5) FAB colors + arrows
+# ---------------------------------------------------------------------------
+# 7) FAB colors + collapse arrow
+# ---------------------------------------------------------------------------
 old_row_body = (
     "SmallFloatingActionButton(\n"
     "                        onClick = onReturnHome,\n"
@@ -211,14 +279,9 @@ if old_row_body in text:
     text = text.replace(old_row_body, new_row_body, 1)
     print("OK: FAB colors + arrows")
 
-if "import androidx.compose.ui.graphics.Color\n" not in text:
-    text = text.replace(
-        "import androidx.compose.ui.Alignment\n",
-        "import androidx.compose.ui.Alignment\nimport androidx.compose.ui.graphics.Color\n",
-        1,
-    )
-
-# 6) WebView speed
+# ---------------------------------------------------------------------------
+# 8) WebView speed
+# ---------------------------------------------------------------------------
 if "LAYER_TYPE_HARDWARE" not in text:
     old_wv = "WebView(ctx).also { mainWv ->"
     new_wv = (
@@ -232,7 +295,9 @@ if "LAYER_TYPE_HARDWARE" not in text:
         text = text.replace(old_wv, new_wv, 1)
         print("OK: WebView speed")
 
-# 7) Add routing callbacks to BrowserScreen signature
+# ---------------------------------------------------------------------------
+# 9) Signature: allSites + routing callbacks
+# ---------------------------------------------------------------------------
 old_sig = (
     "fun BrowserScreen(\n"
     "    site: SiteEntity,\n"
@@ -274,7 +339,9 @@ if old_sig in text:
 else:
     print("WARN: signature not found")
 
-# 8) shouldOverrideUrlLoading: route to matching site / dialog for unknown
+# ---------------------------------------------------------------------------
+# 10) Solution 1: main-frame routing to matching hub site (full OAuth URL)
+# ---------------------------------------------------------------------------
 old_override = (
     "// Respect strict federated SSO security (e.g., Google OAuth disallowed_useragent on third-party sites)\n"
     "                                if (request.isForMainFrame &&\n"
@@ -287,8 +354,7 @@ old_override = (
 )
 
 new_override = (
-    "// Route main-frame navigations to the matching hub site (same session),\n"
-    "                                // e.g. Google OAuth -> Google Account site, chat link -> ChatGPT site.\n"
+    "// Solution 1: Google OAuth / known sites open inside their hub card with the FULL url\n"
     "                                if (request.isForMainFrame) {\n"
     "                                    when (val match = UrlSecurityValidator.resolveExternalLink(targetStr, allSites)) {\n"
     "                                        is ExternalLinkMatch.MatchedSite -> {\n"
@@ -296,7 +362,6 @@ new_override = (
     "                                                onOpenMatchedSite(match.site, match.fullUrl)\n"
     "                                                return true\n"
     "                                            }\n"
-    "                                            // Same site: let WebView continue normally\n"
     "                                        }\n"
     "                                        is ExternalLinkMatch.UnmatchedValidUrl -> {\n"
     "                                            val currentHost = UrlSecurityValidator.extractNormalizedHost(currentSite.url)\n"
@@ -308,9 +373,7 @@ new_override = (
     "                                                return true\n"
     "                                            }\n"
     "                                        }\n"
-    "                                        is ExternalLinkMatch.BlockedInvalidUrl -> {\n"
-    "                                            return true\n"
-    "                                        }\n"
+    "                                        is ExternalLinkMatch.BlockedInvalidUrl -> return true\n"
     "                                    }\n"
     "                                }\n\n"
     "                                return false"
@@ -318,9 +381,76 @@ new_override = (
 
 if old_override in text:
     text = text.replace(old_override, new_override, 1)
-    print("OK: in-app site routing")
+    print("OK: solution-1 routing")
 else:
-    print("WARN: shouldOverride OAuth block not found")
+    print("WARN: shouldOverride block not found")
+
+# ---------------------------------------------------------------------------
+# 11) Popup OAuth: also route to Google Account site (not Custom Tab / blank)
+# ---------------------------------------------------------------------------
+old_popup = (
+    "if (UrlSecurityValidator.isFederatedOAuthChallenge(u, currentSite.url)) {\n"
+    "                                                BrowserDownloadAndAuthHelper.launchSecureExternalAuthTab(ctx, u)\n"
+    "                                                popupWebView?.destroy()\n"
+    "                                                popupWebView = null\n"
+    "                                                return true\n"
+    "                                            }"
+)
+new_popup = (
+    "when (val match = UrlSecurityValidator.resolveExternalLink(u, allSites)) {\n"
+    "                                                is ExternalLinkMatch.MatchedSite -> {\n"
+    "                                                    if (match.site.id != currentSite.id) {\n"
+    "                                                        popupWebView?.destroy()\n"
+    "                                                        popupWebView = null\n"
+    "                                                        onOpenMatchedSite(match.site, match.fullUrl)\n"
+    "                                                        return true\n"
+    "                                                    }\n"
+    "                                                }\n"
+    "                                                else -> { /* continue in popup */ }\n"
+    "                                            }"
+)
+if old_popup in text:
+    text = text.replace(old_popup, new_popup, 1)
+    print("OK: popup routing to hub site")
+else:
+    print("WARN: popup OAuth block not found")
+
+# ---------------------------------------------------------------------------
+# 12) Force AndroidView to recreate when site.id changes using key()
+# ---------------------------------------------------------------------------
+if "key(site.id)" not in text and "androidx.compose.runtime.key" not in text:
+    # Wrap AndroidView with key(site.id) { ... } — careful with braces
+    # Prefer adding import and key around AndroidView
+    if "import androidx.compose.runtime.key\n" not in text:
+        text = text.replace(
+            "import androidx.compose.runtime.getValue\n",
+            "import androidx.compose.runtime.getValue\nimport androidx.compose.runtime.key\n",
+            1,
+        )
+    marker = "AndroidView(\n                modifier = Modifier\n                    .fillMaxSize()\n                    .testTag(\"browser_webview_${site.id}\"),"
+    if marker in text:
+        text = text.replace(
+            marker,
+            "key(site.id, initialUrl) {\n            AndroidView(\n                modifier = Modifier\n                    .fillMaxSize()\n                    .testTag(\"browser_webview_${site.id}\"),",
+            1,
+        )
+        # Close the key block after AndroidView ends - find the spinner that follows
+        old_spinner = (
+            "// Initial Profile Attachment Spinner\n"
+            "            if (!isProfileReady) {"
+        )
+        new_spinner = (
+            "} // end key(site.id)\n\n"
+            "            // Initial Profile Attachment Spinner\n"
+            "            if (!isProfileReady) {"
+        )
+        if old_spinner in text:
+            text = text.replace(old_spinner, new_spinner, 1)
+            print("OK: key(site.id, initialUrl) around AndroidView")
+        else:
+            print("WARN: could not close key() block")
+    else:
+        print("WARN: AndroidView marker for key() not found")
 
 path.write_text(text, encoding="utf-8")
 print("Final lines:", text.count("\n") + 1)
