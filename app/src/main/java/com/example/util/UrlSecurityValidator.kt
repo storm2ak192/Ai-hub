@@ -56,10 +56,6 @@ object UrlSecurityValidator {
         return if (isSafeWebUrl(match)) match else null
     }
 
-    /**
-     * Matches an incoming external deep link (e.g., from WhatsApp, Telegram, or Android App Links)
-     * against all configured websites in AI Hub, preserving the full URL path & query parameters.
-     */
     fun resolveExternalLink(incomingUrl: String, sites: List<SiteEntity>): ExternalLinkMatch {
         val cleaned = incomingUrl.trim()
         if (!isSafeWebUrl(cleaned)) {
@@ -69,7 +65,6 @@ object UrlSecurityValidator {
         val incomingHost = extractNormalizedHost(cleaned)
             ?: return ExternalLinkMatch.BlockedInvalidUrl("Missing host")
 
-        // 1. Exact normalized host match (prioritizing enabled sites, then any saved site)
         val exactMatch = sites.firstOrNull { site ->
             val siteHost = extractNormalizedHost(site.url) ?: return@firstOrNull false
             incomingHost == siteHost
@@ -78,7 +73,6 @@ object UrlSecurityValidator {
             return ExternalLinkMatch.MatchedSite(exactMatch, cleaned)
         }
 
-        // 2. Subdomain / parent domain match (e.g. chat.qwen.ai <-> qwen.ai)
         val domainMatch = sites.firstOrNull { site ->
             val siteHost = extractNormalizedHost(site.url) ?: return@firstOrNull false
             incomingHost.endsWith(".$siteHost") || siteHost.endsWith(".$incomingHost")
@@ -91,13 +85,32 @@ object UrlSecurityValidator {
     }
 
     /**
-     * Previously forced Google/Apple OAuth into Chrome Custom Tabs.
-     * Now returns false so login happens INSIDE the app WebView as requested by the user.
-     * This keeps cookies and session inside the isolated profile so login survives restarts.
+     * Detects Google / Apple OAuth pages so we open them in Chrome Custom Tab
+     * (Google blocks login inside embedded WebViews).
+     * After the user finishes login and returns, the app reloads the site to pick up the session.
      */
     fun isFederatedOAuthChallenge(url: String, currentSiteUrl: String): Boolean {
-        // User explicitly requested login to stay inside the app.
-        // Returning false keeps the OAuth flow in the same WebView / profile.
+        val targetHost = extractNormalizedHost(url) ?: return false
+        val baseHost = extractNormalizedHost(currentSiteUrl) ?: ""
+
+        // Google OAuth
+        if (targetHost == "accounts.google.com" && !baseHost.endsWith("google.com")) {
+            val lower = url.lowercase(Locale.US)
+            if (lower.contains("/o/oauth2") ||
+                lower.contains("/signin") ||
+                lower.contains("/servicelogin") ||
+                lower.contains("oauth") ||
+                lower.contains("identifier")
+            ) {
+                return true
+            }
+        }
+
+        // Apple ID
+        if (targetHost == "appleid.apple.com" && url.lowercase(Locale.US).contains("/auth")) {
+            return true
+        }
+
         return false
     }
 }
