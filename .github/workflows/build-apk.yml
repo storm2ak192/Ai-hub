@@ -17,27 +17,7 @@ jobs:
           curl -sL "https://raw.githubusercontent.com/storm2ak192/Ai-hub/c70ad478b52880ebfe2c8d850ed4949df5d31379/app/src/main/java/com/example/ui/AIHubApp.kt" -o app/src/main/java/com/example/ui/AIHubApp.kt
           python3 tools/patch_browser_screen.py
           python3 tools/patch_aihub_app.py
-          python3 << 'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/example/ui/screens/BrowserScreen.kt")
-          t = p.read_text(encoding="utf-8")
-          t = t.replace("view?.loadUrl(u)", "mainWv.loadUrl(u)")
-          # Replace undefined constant with inline Chrome mobile UA
-          chrome_ua = '"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"'
-          t = t.replace("CHROME_MOBILE_USER_AGENT", chrome_ua)
-          # If a bogus "private val "Mozilla... was created, remove bad lines
-          lines = []
-          for line in t.splitlines(keepends=True):
-              if "private val "Mozilla" in line or "private val \"Mozilla" in line:
-                  continue
-              if line.strip().startswith("private val ") and "Mozilla/5.0" in line and "DESKTOP" not in line:
-                  continue
-              lines.append(line)
-          t = "".join(lines)
-          p.write_text(t, encoding="utf-8")
-          print("braces", t.count("{"), t.count("}"))
-          print("has undefined const", "CHROME_MOBILE_USER_AGENT" in t)
-          PY
+          python3 tools/fix_patched_browser.py
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
