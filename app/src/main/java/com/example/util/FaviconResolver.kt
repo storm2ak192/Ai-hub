@@ -47,6 +47,69 @@ object FaviconResolver {
         return@withContext buildInstantFaviconUrl(normalizedUrl)
     }
 
+    /**
+     * Reads a site's public HTML metadata and returns a concise description for a new site.
+     * Uses meta description first, then Open Graph/Twitter description, page title, and host.
+     */
+    suspend fun discoverSiteDescription(siteUrl: String): String? = withContext(Dispatchers.IO) {
+        val normalizedUrl = UrlSecurityValidator.normalizeAndValidateInputUrl(siteUrl)
+            ?: return@withContext null
+        var connection: HttpURLConnection? = null
+        try {
+            connection = (URL(normalizedUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 4000
+                readTimeout = 4000
+                instanceFollowRedirects = true
+                requestMethod = "GET"
+                setRequestProperty(
+                    "User-Agent",
+                    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+                )
+                setRequestProperty("Accept", "text/html,application/xhtml+xml")
+            }
+            if (connection.responseCode !in 200..299) return@withContext null
+
+            val buffer = CharArray(49152)
+            val reader = connection.inputStream.bufferedReader(Charsets.UTF_8)
+            val charsRead = reader.read(buffer)
+            if (charsRead <= 0) return@withContext null
+            val html = String(buffer, 0, charsRead)
+
+            val metaTags = Regex("""<meta\\b[^>]*>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            val contentRegex = Regex("""\\bcontent\\s*=\\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+            val nameRegex = Regex("""\\b(?:name|property)\\s*=\\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+            val preferredKeys = listOf("description", "og:description", "twitter:description")
+            val descriptions = metaTags.findAll(html).mapNotNull { match ->
+                val tag = match.value
+                val key = nameRegex.find(tag)?.groupValues?.getOrNull(1)?.lowercase(Locale.US)
+                val value = contentRegex.find(tag)?.groupValues?.getOrNull(1)
+                if (key in preferredKeys && !value.isNullOrBlank()) key to value else null
+            }.toList()
+            val rawDescription = preferredKeys.firstNotNullOfOrNull { key ->
+                descriptions.firstOrNull { it.first == key }?.second
+            }
+            val title = Regex("""<title\\b[^>]*>(.*?)</title>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                .find(html)?.groupValues?.getOrNull(1)
+            val host = URL(connection.url.toString()).host
+            val selected = rawDescription ?: title ?: host
+            selected
+                ?.replace(Regex("""<[^>]+>"""), " ")
+                ?.replace("&amp;", "&")
+                ?.replace("&quot;", "\"")
+                ?.replace("&#39;", "'")
+                ?.replace("&lt;", "<")
+                ?.replace("&gt;", ">")
+                ?.replace(Regex("""\\s+"""), " ")
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.take(180)
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     private fun fetchIconFromHtmlHead(pageUrl: String, origin: String): String? {
         var connection: HttpURLConnection? = null
         return try {
