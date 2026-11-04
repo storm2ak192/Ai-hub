@@ -58,8 +58,8 @@ object UrlSecurityValidator {
 
     fun resolveExternalLink(incomingUrl: String, sites: List<SiteEntity>): ExternalLinkMatch {
         val cleaned = incomingUrl.trim()
-        if (!isSafeWebUrl(cleaned)) {
-            return ExternalLinkMatch.BlockedInvalidUrl("Unsafe or malformed URL")
+        if (!isSafeWebUrl(cleaned) || !cleaned.startsWith("https://", ignoreCase = true)) {
+            return ExternalLinkMatch.BlockedInvalidUrl("Only safe HTTPS URLs are accepted for external link routing")
         }
 
         val incomingHost = extractNormalizedHost(cleaned)
