@@ -6,7 +6,7 @@ vm = Path("app/src/main/java/com/example/ui/viewmodel/HubViewModel.kt")
 t = vm.read_text(encoding="utf-8")
 t = t.replace(
     "private val _selectedTab = MutableStateFlow(BottomNavTab.HOME)",
-    "private val _selectedTab = MutableStateFlow(BottomNavTab.FAVORITES)",
+    "private val _selectedTab = MutableStateFlow(BottomNavTab.HOME)",
 )
 old = """    fun moveSiteOrder(siteId: String, moveUp: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { repository.moveSiteOrder(siteId, moveUp) }
