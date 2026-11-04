@@ -55,7 +55,7 @@ new_create = (
     f"{indent}            return false\n"
     f"{indent}        }}\n"
     f"{indent}        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {{\n"
-    f"{indent}            if (!url.isNullOrBlank() && pendingLinkUrl == null) {{\n"
+    f"{indent}            if (!url.isNullOrBlank() && url != \"about:blank\" && pendingLinkUrl == null) {{\n"
     f"{indent}                if (url.startsWith(\"https://\", ignoreCase = true) && UrlSecurityValidator.isSafeWebUrl(url)) pendingLinkUrl = url\n"
     f"{indent}                try {{ probe.stopLoading(); probe.destroy() }} catch (_: Exception) {{}}\n"
     f"{indent}            }}\n"
