@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - "fix/**"
+      - "feature/**"
 
 jobs:
   build:
@@ -23,6 +24,7 @@ jobs:
           python3 tools/fix_patched_browser.py
           python3 tools/patch_viewmodel_defaults.py
           python3 tools/patch_settings_reorder.py
+          python3 tools/patch_custom_tabs.py
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
