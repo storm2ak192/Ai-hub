@@ -366,9 +366,9 @@ if route_start >= 0 and "pendingLinkUrl = targetStr" not in text:
         raise SystemExit(1)
     chooser_route = (
         "                                    val currentHost = UrlSecurityValidator.extractNormalizedHost(currentSite.url)\n"
-        "                                    val targetHost = UrlSecurityValidator.extractNormalizedHost(targetStr)\n"
-        "                                    if (currentHost != null && targetHost != null &&\n"
-        "                                        targetHost != currentHost && !targetHost.endsWith(\".\" + currentHost)\n"
+        "                                    val routedTargetHost = UrlSecurityValidator.extractNormalizedHost(targetStr)\n"
+        "                                    if (currentHost != null && routedTargetHost != null &&\n"
+        "                                        routedTargetHost != currentHost && !routedTargetHost.endsWith(\".\" + currentHost)\n"
         "                                    ) {\n"
         "                                        if (targetStr.startsWith(\"https://\", ignoreCase = true) &&\n"
         "                                            UrlSecurityValidator.isSafeWebUrl(targetStr)\n"
