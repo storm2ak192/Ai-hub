@@ -66,6 +66,7 @@ object UrlSecurityValidator {
             ?: return ExternalLinkMatch.BlockedInvalidUrl("Missing host")
 
         val exactMatch = sites.firstOrNull { site ->
+            if (!site.isEnabled) return@firstOrNull false
             val siteHost = extractNormalizedHost(site.url) ?: return@firstOrNull false
             incomingHost == siteHost
         }
@@ -73,9 +74,12 @@ object UrlSecurityValidator {
             return ExternalLinkMatch.MatchedSite(exactMatch, cleaned)
         }
 
+        // A configured parent domain may own its subdomains, but a parent
+        // domain must never be captured by a site configured only for a subdomain.
         val domainMatch = sites.firstOrNull { site ->
+            if (!site.isEnabled) return@firstOrNull false
             val siteHost = extractNormalizedHost(site.url) ?: return@firstOrNull false
-            incomingHost.endsWith(".$siteHost") || siteHost.endsWith(".$incomingHost")
+            incomingHost.endsWith(".$siteHost")
         }
         if (domainMatch != null) {
             return ExternalLinkMatch.MatchedSite(domainMatch, cleaned)
