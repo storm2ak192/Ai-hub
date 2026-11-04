@@ -386,6 +386,10 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repository.moveSiteOrder(siteId, moveUp) }
     }
 
+    fun reorderSites(fromIndex: Int, toIndex: Int) {
+        viewModelScope.launch(Dispatchers.IO) { repository.reorderSites(fromIndex, toIndex) }
+    }
+
     fun deleteSiteAndSession(site: SiteEntity) {
         if (_activeBrowserSession.value?.site?.id == site.id) {
             _activeBrowserSession.value = null
