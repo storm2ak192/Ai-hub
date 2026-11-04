@@ -84,12 +84,20 @@ object PinnedSiteShortcutManager {
      */
     private suspend fun loadWebsiteIcon(site: SiteEntity): Bitmap {
         val candidates = linkedSetOf<String>()
-        site.iconUrl?.trim()?.takeIf { it.isNotBlank() }?.let(candidates::add)
+
+        // Prefer a user-supplied non-proxy icon, then the original icon declared by
+        // the website. Google S2 proxy favicons are fallback-only, not first choice.
+        site.iconUrl?.trim()
+            ?.takeIf { it.isNotBlank() && !it.contains("google.com/s2/favicons", ignoreCase = true) }
+            ?.let(candidates::add)
 
         runCatching {
             FaviconResolver.discoverOriginalSiteIconUrl(site.url)
         }.getOrNull()?.takeIf { it.isNotBlank() }?.let(candidates::add)
 
+        site.iconUrl?.trim()
+            ?.takeIf { it.isNotBlank() && it.contains("google.com/s2/favicons", ignoreCase = true) }
+            ?.let(candidates::add)
         FaviconResolver.buildInstantFaviconUrl(site.url)?.let(candidates::add)
 
         for (iconUrl in candidates) {
