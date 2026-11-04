@@ -230,7 +230,8 @@ fun AIHubApp(
                                         onEditSite = { site ->
                                             editingSite = site
                                             showAddEditDialog = true
-                                        }
+                                        },
+                                        onAddToHomeScreen = { viewModel.pinSiteShortcut(it) }
                                     )
                                 }
                                 BottomNavTab.HISTORY -> {
@@ -428,7 +429,7 @@ private fun SecureExternalLinkDialog(
                     )
                     IconButton(onClick = onDismiss) {
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Filled.Close,
+                            imageVector = androidx.compose.material.icons.Icons.Filled.Clear,
                             contentDescription = "Close secure popup"
                         )
                     }
