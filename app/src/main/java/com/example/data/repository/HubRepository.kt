@@ -41,25 +41,15 @@ class HubRepository(
     val themeModeFlow: Flow<ThemeMode> = settingsDataStore.themeModeFlow
     val languageFlow: Flow<AppLanguage> = settingsDataStore.languageFlow
 
-    /**
-     * Ensures default AI sites exist. Restores Google Account URL if it drifted.
-     */
+    /** Ensures the default AI sites exist and removes the retired Google Account shortcut. */
     suspend fun ensureDefaultSitesSeeded() {
         val currentSites = siteDao.getAllSitesSnapshot()
+        // Remove the retired standalone Google Account card from existing installations too.
+        currentSites.firstOrNull { it.id == DefaultSitesSeed.LEGACY_GOOGLE_ACCOUNTS_SITE_ID }?.let {
+            siteDao.deleteSite(it)
+        }
         val existingIds = currentSites.map { it.id }.toSet()
         val deletedDefaultIds = settingsDataStore.getDeletedDefaultIds()
-
-        // Fix Google Account card URL if it was overwritten by an OAuth link
-        currentSites.firstOrNull { it.id == DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID }?.let { google ->
-            if (google.url != "https://accounts.google.com") {
-                siteDao.updateSite(
-                    google.copy(
-                        url = "https://accounts.google.com",
-                        description = "قم بتسجيل حساب جوجل هنا اولا ثم التسجيل به في المواقع"
-                    )
-                )
-            }
-        }
 
         val missingDefaults = DefaultSitesSeed.getDefaultSites().filter { defaultSite ->
             defaultSite.id !in existingIds && defaultSite.id !in deletedDefaultIds
@@ -179,11 +169,9 @@ class HubRepository(
             siteDao.updateSites(disabledDefaultsToEnable)
         }
 
-        // Always restore Google URL if present
-        existingById[DefaultSitesSeed.GOOGLE_ACCOUNTS_SITE_ID]?.let { google ->
-            if (google.url != "https://accounts.google.com") {
-                siteDao.updateSite(google.copy(url = "https://accounts.google.com"))
-            }
+        // Remove the retired Google Account card when restoring defaults as well.
+        existingById[DefaultSitesSeed.LEGACY_GOOGLE_ACCOUNTS_SITE_ID]?.let {
+            siteDao.deleteSite(it)
         }
 
         val missingDefaults = defaults.filter { it.id !in existingById.keys }
