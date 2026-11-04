@@ -244,15 +244,18 @@ for tag in [
     "toggle_site_downloads",
     "toggle_site_desktop_mode",
 ]:
-    pattern = (
-        r'                PermissionToggleRow\\(\\n'
-        r'                    label = strings\\.[A-Za-z0-9_]+,\\n'
-        r'                    checked = [A-Za-z0-9_]+,\\n'
-        r'                    onCheckedChange = \\{ [A-Za-z0-9_]+ = it \\},\\n'
-        r'                    tag = "' + re.escape(tag) + r'"\\n'
-        r'                \\)\\n'
-    )
-    t = re.sub(pattern, "", t, count=1)
+    lines = t.splitlines(keepends=True)
+    tag_line = next((i for i, line in enumerate(lines) if f'tag = "{tag}"' in line), None)
+    if tag_line is not None:
+        start_line = tag_line
+        while start_line >= 0 and "PermissionToggleRow(" not in lines[start_line]:
+            start_line -= 1
+        end_line = tag_line
+        while end_line < len(lines) and lines[end_line].strip() != ")":
+            end_line += 1
+        if start_line >= 0 and end_line < len(lines):
+            del lines[start_line:end_line + 1]
+            t = "".join(lines)
 p.write_text(t, encoding="utf-8")
 
 # 5) Wire the new screen and setting into the restored AIHubApp source.
