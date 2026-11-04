@@ -353,6 +353,42 @@ else:
     print("WARN: shouldOverride block not found")
 
 # ---------------------------------------------------------------------------
+# 10b) Every cross-site link tapped inside a website uses the same chooser.
+# Known sites are intentionally not auto-routed here: the user explicitly
+# chooses an isolated in-app popup or a Chrome Custom Tab.
+# ---------------------------------------------------------------------------
+route_start = text.find("                                    when (val match = UrlSecurityValidator.resolveExternalLink(targetStr, allSites)) {")
+if route_start >= 0 and "pendingLinkUrl = targetStr" not in text:
+    route_end_marker = "\n                                    }\n                                }\n\n                                return false"
+    route_end = text.find(route_end_marker, route_start)
+    if route_end < 0:
+        print("ERROR: could not bound cross-site routing block")
+        raise SystemExit(1)
+    chooser_route = (
+        "                                    val currentHost = UrlSecurityValidator.extractNormalizedHost(currentSite.url)\n"
+        "                                    val targetHost = UrlSecurityValidator.extractNormalizedHost(targetStr)\n"
+        "                                    if (currentHost != null && targetHost != null &&\n"
+        "                                        targetHost != currentHost && !targetHost.endsWith(\\".\\" + currentHost)\n"
+        "                                    ) {\n"
+        "                                        if (targetStr.startsWith(\\"https://\\", ignoreCase = true) &&\n"
+        "                                            UrlSecurityValidator.isSafeWebUrl(targetStr)\n"
+        "                                        ) {\n"
+        "                                            pendingLinkUrl = targetStr\n"
+        "                                        } else {\n"
+        "                                            onShowMessage(strings.browserSecurityBlockedTitle)\n"
+        "                                        }\n"
+        "                                        return true\n"
+        "                                    }\n"
+        "                                    if (!UrlSecurityValidator.isSafeWebUrl(targetStr)) return true"
+    )
+    text = text[:route_start] + chooser_route + text[route_end + len("\\n                                    }"):]
+    print("OK: same-window cross-site links use the link chooser")
+elif "pendingLinkUrl = targetStr" in text:
+    print("OK: cross-site link chooser already present")
+else:
+    print("WARN: route block was not found; no cross-site chooser change applied")
+
+# ---------------------------------------------------------------------------
 # 11) Popup: Google login also stays / loads in main flow via parent routing
 # ---------------------------------------------------------------------------
 old_popup = (
