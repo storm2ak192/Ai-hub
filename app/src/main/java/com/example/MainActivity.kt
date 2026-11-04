@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.AIHubApp
 import com.example.ui.theme.AIHubTheme
+import com.example.ui.viewmodel.BottomNavTab
 import com.example.ui.viewmodel.HubViewModel
 import com.example.util.UrlSecurityValidator
 
@@ -20,6 +21,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // A normal launcher launch must always start on Home, never the last viewed tab.
+        if (intent?.action == Intent.ACTION_MAIN) {
+            viewModel.selectTab(BottomNavTab.HOME)
+        }
 
         if (savedInstanceState == null) {
             processIncomingIntent(intent)
