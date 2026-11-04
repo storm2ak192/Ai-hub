@@ -32,7 +32,10 @@ jobs:
           ! grep -Eq 'DragHandle|detectDragGesturesAfterLongPress|draggingIndex' app/src/main/java/com/example/ui/screens/SettingsScreen.kt
           grep -q 'pendingLinkUrl' app/src/main/java/com/example/ui/screens/BrowserScreen.kt
           grep -q 'onOpenMatchedSite' app/src/main/java/com/example/ui/AIHubApp.kt
+          grep -q 'SecureExternalLinkDialog' app/src/main/java/com/example/ui/AIHubApp.kt
+          grep -q 'android:scheme="https"' app/src/main/AndroidManifest.xml
           grep -q 'androidx.browser' app/build.gradle.kts
+          grep -q 'MutableStateFlow(BottomNavTab.HOME)' app/src/main/java/com/example/ui/viewmodel/HubViewModel.kt
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
