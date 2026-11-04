@@ -47,6 +47,7 @@ fun SiteCard(
     onOpen: () -> Unit,
     onToggleFavorite: () -> Unit,
     onEdit: () -> Unit,
+    onAddToHomeScreen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
