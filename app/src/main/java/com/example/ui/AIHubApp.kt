@@ -222,6 +222,7 @@ fun AIHubApp(
                                         }
                                     )
                                 }
+                                // Keep the home-screen shortcut action available on favorite cards too.
                                 BottomNavTab.FAVORITES -> {
                                     FavoritesScreen(
                                         favorites = favoriteSites,
