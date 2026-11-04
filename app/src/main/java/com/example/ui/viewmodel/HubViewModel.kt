@@ -191,6 +191,22 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun openPinnedSite(siteId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.ensureDefaultSitesSeeded()
+            val site = repository.getAllSitesSnapshot().firstOrNull { it.id == siteId && it.isEnabled }
+            if (site != null) {
+                openSite(site)
+            } else {
+                _snackbarMessage.value = "هذا الموقع لم يعد متاحاً أو تم تعطيله."
+            }
+        }
+    }
+
+    fun pinSiteShortcut(site: SiteEntity) {
+        com.example.browser.PinnedSiteShortcutManager.pin(getApplication(), site)
+    }
+
     fun closeBrowserToHome() {
         val current = _activeBrowserSession.value
         _activeBrowserSession.value = null
