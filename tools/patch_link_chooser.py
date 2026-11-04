@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""When a site opens a link in a new window, ask: secure popup vs external browser."""
+"""When a site opens a link in a new window, ask: secure popup vs Custom Tab."""
 from pathlib import Path
 
 path = Path("app/src/main/java/com/example/ui/screens/BrowserScreen.kt")
@@ -23,21 +23,17 @@ if "pendingLinkUrl" not in text:
 # ---------------------------------------------------------------------------
 # 2) Replace onCreatePopup to capture URL then show chooser (not auto-open)
 # ---------------------------------------------------------------------------
-# Find the onCreatePopup lambda start after patches may have modified insides.
 marker = "onCreatePopup = { resultMsg ->"
 if marker not in text:
     print("ERROR: onCreatePopup not found")
     raise SystemExit(1)
 
-# We replace from onCreatePopup through the closing of that lambda assignment
-# Looking for the pattern ending before onCustomVideoShow
 start = text.find(marker)
 end = text.find("onCustomVideoShow = {", start)
 if start < 0 or end < 0:
     print("ERROR: could not bound onCreatePopup block")
     raise SystemExit(1)
 
-# Keep indentation of onCreatePopup line
 indent = "                            "
 new_create = (
     "onCreatePopup = { resultMsg ->\n"
@@ -76,18 +72,13 @@ new_create = (
 text = text[:start] + new_create + text[end:]
 print("OK: onCreatePopup chooser probe")
 
-# ---------------------------------------------------------------------------
-# 3) Helper lambda openSecurePopup(url) injected near popup dialog
-#    We implement opening by assigning a fully configured popup WebView.
-# ---------------------------------------------------------------------------
-# Insert link-chooser dialog BEFORE the existing popup dialog block
 popup_dialog_marker = "// Popup Window Dialog (Sharing the exact same isolated site profile)"
 if popup_dialog_marker not in text:
     print("ERROR: popup dialog marker missing")
     raise SystemExit(1)
 
 chooser_dialog = r'''
-    // Link open chooser: secure in-app popup OR system external browser
+    // Link open chooser: secure in-app popup OR Chrome Custom Tab
     if (pendingLinkUrl != null) {
         val link = pendingLinkUrl!!
         AlertDialog(
@@ -163,10 +154,7 @@ chooser_dialog = r'''
                         onClick = {
                             pendingLinkUrl = null
                             try {
-                                val intent = Intent(Intent.ACTION_VIEW, link.toUri()).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(intent)
+                                BrowserDownloadAndAuthHelper.openCustomTab(context, link)
                             } catch (_: Exception) {
                                 onShowMessage(strings.browserSecurityBlockedTitle)
                             }
@@ -194,9 +182,7 @@ if "browserOpenInSecurePopup" not in text:
 else:
     print("OK: chooser already present")
 
-# Ensure toUri import if missing
 if "import androidx.core.net.toUri" not in text and "toUri()" in text:
-    # may already use toUri via other imports; add if needed
     if "androidx.core.net.toUri" not in text:
         text = text.replace(
             "import android.content.Intent\n",
@@ -205,7 +191,6 @@ if "import androidx.core.net.toUri" not in text and "toUri()" in text:
         )
         print("OK: toUri import")
 
-# AlertDialog import
 if "material3.AlertDialog" not in text and "AlertDialog(" in text:
     text = text.replace(
         "import androidx.compose.material3.Button\n",
@@ -237,3 +222,4 @@ if "TextButton" in text and "material3.TextButton" not in text:
 path.write_text(text, encoding="utf-8")
 print("braces", text.count("{"), text.count("}"))
 print("has chooser strings refs", "browserOpenInSecurePopup" in text)
+print("uses Custom Tab", "openCustomTab" in text)
