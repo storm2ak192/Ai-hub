@@ -27,6 +27,7 @@ data class AppStrings(
     val emptyDownloadsTitle: String,
     val emptyDownloadsDesc: String,
     val openSite: String,
+    val addToHomeScreen: String,
     val isolatedSessionBadge: String,
     val disabledBadge: String,
     // Browser Screen
@@ -160,6 +161,7 @@ val ArabicStrings = AppStrings(
     emptyDownloadsTitle = "لا توجد تنزيلات",
     emptyDownloadsDesc = "الملفات والصور التي تقوم بتنزيلها من المواقع ستظهر هنا لإدارتها.",
     openSite = "فتح",
+    addToHomeScreen = "إضافة للشاشة الرئيسية",
     isolatedSessionBadge = "جلسة مستقلة",
     disabledBadge = "معطّل",
     browserHome = "الرئيسية",
@@ -279,6 +281,7 @@ val EnglishStrings = AppStrings(
     emptyDownloadsTitle = "No Downloads Yet",
     emptyDownloadsDesc = "Files and media downloaded from your sites will be listed here.",
     openSite = "Open",
+    addToHomeScreen = "Add to home screen",
     isolatedSessionBadge = "Isolated Session",
     disabledBadge = "Disabled",
     browserHome = "Home",
