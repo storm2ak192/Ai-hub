@@ -2,7 +2,7 @@ package com.example.data.local
 
 object DefaultSitesSeed {
 
-    const val GOOGLE_ACCOUNTS_SITE_ID = "site_google_accounts"
+    const val LEGACY_GOOGLE_ACCOUNTS_SITE_ID = "site_google_accounts"
 
     fun getDefaultSites(): List<SiteEntity> = listOf(
         SiteEntity(
@@ -103,19 +103,6 @@ object DefaultSitesSeed {
             isDefault = true,
             profileKey = "aihub_shared_session"
         ),
-        SiteEntity(
-            id = GOOGLE_ACCOUNTS_SITE_ID,
-            name = "Google Account",
-            url = "https://accounts.google.com",
-            description = "قم بتسجيل حساب جوجل هنا اولا ثم التسجيل به في المواقع",
-            iconUrl = "https://www.google.com/s2/favicons?domain_url=https://accounts.google.com&sz=128",
-            iconPreset = "google",
-            accentColorHex = 0xFFEA4335L,
-            isFavorite = false,
-            isEnabled = true,
-            sortOrder = 7,
-            isDefault = true,
-            profileKey = "aihub_shared_session"
-        )
+
     )
 }
