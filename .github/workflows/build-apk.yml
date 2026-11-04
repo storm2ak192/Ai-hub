@@ -20,7 +20,7 @@ jobs:
           python3 tools/patch_aihub_app.py
           python3 tools/fix_patched_browser.py
           python3 tools/patch_viewmodel_defaults.py
-          python3 tools/patch_settings_reorder.py
+          # site order uses up/down arrows (no drag-reorder patch)
           python3 tools/patch_pinned_shortcuts.py
           python3 tools/patch_app_strings_link_chooser.py
           python3 tools/patch_link_chooser.py
