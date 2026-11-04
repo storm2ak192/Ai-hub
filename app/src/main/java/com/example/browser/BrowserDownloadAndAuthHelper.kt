@@ -158,26 +158,21 @@ object BrowserDownloadAndAuthHelper {
      * Opens [url] in a Chrome Custom Tab (in-app browser sheet).
      * Falls back to a normal external browser intent if Custom Tabs is unavailable.
      */
+    /**
+     * Opens a validated HTTPS URL in a Chrome Custom Tab.
+     * Does not silently fall back to ACTION_VIEW: that could open a full browser
+     * instead of the Custom Tab the user explicitly selected.
+     */
     fun openCustomTab(context: Context, url: String) {
-        if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
-            return
+        if (!com.example.util.UrlSecurityValidator.isSafeWebUrl(url) ||
+            !url.startsWith("https://", ignoreCase = true)
+        ) {
+            throw IllegalArgumentException("Only validated HTTPS links can be opened in a Custom Tab.")
         }
-        try {
-            val customTabsIntent = CustomTabsIntent.Builder()
-                .setShowTitle(true)
-                .setUrlBarHidingEnabled(true)
-                .setShareState(CustomTabsIntent.SHARE_STATE_ON)
-                .build()
-            customTabsIntent.launchUrl(context, url.toUri())
-        } catch (_: Exception) {
-            try {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, url.toUri()).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                )
-            } catch (_: Exception) {
-            }
-        }
-    }
-}
+        val customTabsIntent = CustomTabsIntent.Builder()
+            .setShowTitle(true)
+            .setUrlBarHidingEnabled(true)
+            .setShareState(CustomTabsIntent.SHARE_STATE_ON)
+            .build()
+        customTabsIntent.launchUrl(context, url.toUri())
+    }}
