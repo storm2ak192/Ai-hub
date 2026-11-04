@@ -3,7 +3,12 @@ package com.example.browser
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.content.ComponentName
+import androidx.browser.customtabs.CustomTabsCallback
+import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.browser.customtabs.CustomTabsServiceConnection
+import androidx.browser.customtabs.CustomTabsSession
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -215,6 +220,69 @@ fun BrowserProviderSettingsCard(
     }
 }
 
+/**
+ * Keeps a lightweight Custom Tabs connection alive for the selected browser.
+ * Warmup and URL prefetch can reduce browser startup work; actual page speed still
+ * depends on the selected browser, network and website.
+ */
+private object CustomTabsWarmupManager {
+    private var activePackage: String? = null
+    private var activeConnection: CustomTabsServiceConnection? = null
+    private var activeSession: CustomTabsSession? = null
+
+    @Synchronized
+    fun prepare(context: Context, packageName: String, url: String) {
+        if (activePackage == packageName && activeSession != null) {
+            activeSession?.mayLaunchUrl(Uri.parse(url), null, null)
+            return
+        }
+
+        val appContext = context.applicationContext
+        activeConnection?.let { oldConnection ->
+            runCatching { appContext.unbindService(oldConnection) }
+        }
+        activePackage = null
+        activeConnection = null
+        activeSession = null
+
+        val connection = object : CustomTabsServiceConnection() {
+            override fun onCustomTabsServiceConnected(
+                name: ComponentName,
+                client: CustomTabsClient
+            ) {
+                client.warmup(0L)
+                val newSession = client.newSession(object : CustomTabsCallback() {})
+                synchronized(this@CustomTabsWarmupManager) {
+                    activePackage = packageName
+                    activeConnection = this
+                    activeSession = newSession
+                }
+                newSession?.mayLaunchUrl(Uri.parse(url), null, null)
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) {
+                synchronized(this@CustomTabsWarmupManager) {
+                    if (activePackage == packageName) {
+                        activePackage = null
+                        activeConnection = null
+                        activeSession = null
+                    }
+                }
+            }
+        }
+
+        val bound = CustomTabsClient.bindCustomTabsService(appContext, packageName, connection)
+        if (bound) {
+            activePackage = packageName
+            activeConnection = connection
+        }
+    }
+
+    @Synchronized
+    fun sessionFor(packageName: String): CustomTabsSession? =
+        if (activePackage == packageName) activeSession else null
+}
+
 @Composable
 fun CustomTabsBrowserScreen(
     site: SiteEntity,
@@ -249,8 +317,16 @@ fun CustomTabsBrowserScreen(
                 launched = true
                 onRecordHistory(site.name, initialUrl)
                 try {
-                    val customTabsIntent = CustomTabsIntent.Builder()
+                    CustomTabsWarmupManager.prepare(
+                        context = context,
+                        packageName = selectedBrowserPackage,
+                        url = initialUrl
+                    )
+                    val customTabsIntent = CustomTabsIntent.Builder(
+                        CustomTabsWarmupManager.sessionFor(selectedBrowserPackage)
+                    )
                         .setShowTitle(true)
+                        .setUrlBarHidingEnabled(true)
                         .build()
                     customTabsIntent.intent.setPackage(selectedBrowserPackage)
                     customTabsIntent.launchUrl(context, Uri.parse(initialUrl))
