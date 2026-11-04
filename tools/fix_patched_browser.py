@@ -85,6 +85,16 @@ if "offscreenPreRaster" not in t and "LAYER_TYPE_HARDWARE" in t:
     else:
         print("WARN: speed block pattern missing")
 
+# Remove the legacy external-login menu entry: AI Hub must remain inside WebView.
+start_marker = '                                DropdownMenuItem(\\n                                    text = { Text(strings.browserOpenExternalLogin) },'
+end_marker = '                                DropdownMenuItem(\\n                                    text = { Text(strings.browserSiteSettings) },'
+if start_marker in t:
+    start = t.index(start_marker)
+    end = t.find(end_marker, start)
+    if end == -1:
+        raise SystemExit("Could not locate the end of the external-login menu item")
+    t = t[:start] + t[end:]
+
 p.write_text(t, encoding="utf-8")
 print("braces", t.count("{"), t.count("}"))
 print("has undefined const", "CHROME_MOBILE_USER_AGENT" in t)
