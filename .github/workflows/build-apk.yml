@@ -19,12 +19,15 @@ jobs:
         run: |
           curl -sL "https://raw.githubusercontent.com/storm2ak192/Ai-hub/c50019ac166993f2b3c1e36d43ec170481fb1d42/app/src/main/java/com/example/ui/screens/BrowserScreen.kt" -o app/src/main/java/com/example/ui/screens/BrowserScreen.kt
           curl -sL "https://raw.githubusercontent.com/storm2ak192/Ai-hub/c70ad478b52880ebfe2c8d850ed4949df5d31379/app/src/main/java/com/example/ui/AIHubApp.kt" -o app/src/main/java/com/example/ui/AIHubApp.kt
+          curl -sL "https://raw.githubusercontent.com/storm2ak192/Ai-hub/ad76c4f077c6cba87b6cfff4c4329a675de01fbe/app/src/main/java/com/example/ui/localization/AppStrings.kt" -o app/src/main/java/com/example/ui/localization/AppStrings.kt
           python3 tools/patch_browser_screen.py
           python3 tools/patch_aihub_app.py
           python3 tools/fix_patched_browser.py
           python3 tools/patch_viewmodel_defaults.py
           python3 tools/patch_settings_reorder.py
           python3 tools/patch_pinned_shortcuts.py
+          python3 tools/patch_app_strings_link_chooser.py
+          python3 tools/patch_link_chooser.py
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
