@@ -172,16 +172,21 @@ t = replace_once(
     '                onSetThemeMode = onSetThemeMode,',
     "settings main call"
 )
-# SettingsMainContent has the same language/onSetThemeMode sequence; patch its signature only.
-t = replace_once(
-    t,
-    '    language: AppLanguage,\n    onSetThemeMode: (ThemeMode) -> Unit,',
+# Patch the SettingsMainContent signature separately from SettingsScreen's signature.
+main_idx = t.index("private fun SettingsMainContent(")
+main_prefix, main_part = t[:main_idx], t[main_idx:]
+old_main_sig = '    language: AppLanguage,\n    onSetThemeMode: (ThemeMode) -> Unit,'
+new_main_sig = (
     '    language: AppLanguage,\n'
     '    selectedBrowserPackage: String?,\n'
     '    onSelectBrowser: (String) -> Unit,\n'
-    '    onSetThemeMode: (ThemeMode) -> Unit,',
-    "settings main parameters"
+    '    onSetThemeMode: (ThemeMode) -> Unit,'
 )
+if new_main_sig not in main_part:
+    if old_main_sig not in main_part:
+        raise SystemExit("Required patch point not found: settings main parameters")
+    main_part = main_part.replace(old_main_sig, new_main_sig, 1)
+t = main_prefix + main_part
 # Remove the old in-app downloads card.
 t = re.sub(
     r'        // 2\. Downloads Manager Card\n.*?(?=        // 3\. Appearance & Language Card)',
