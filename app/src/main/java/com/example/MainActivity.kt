@@ -47,6 +47,9 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == Intent.ACTION_MAIN) {
+            viewModel.selectTab(BottomNavTab.HOME)
+        }
         processIncomingIntent(intent)
     }
 
@@ -54,16 +57,19 @@ class MainActivity : ComponentActivity() {
         if (incoming == null) return
         when (incoming.action) {
             com.example.browser.PinnedSiteShortcutManager.ACTION_OPEN_PINNED_SITE -> {
+                viewModel.selectTab(BottomNavTab.HOME)
                 val siteId = incoming.getStringExtra(com.example.browser.PinnedSiteShortcutManager.EXTRA_SITE_ID)
                 if (!siteId.isNullOrBlank()) viewModel.openPinnedSite(siteId)
             }
             Intent.ACTION_VIEW -> {
+                viewModel.selectTab(BottomNavTab.HOME)
                 val url = incoming.dataString
                 if (!url.isNullOrBlank()) {
                     viewModel.handleExternalUrl(url)
                 }
             }
             Intent.ACTION_SEND -> {
+                viewModel.selectTab(BottomNavTab.HOME)
                 if (incoming.type == "text/plain") {
                     val sharedText = incoming.getStringExtra(Intent.EXTRA_TEXT)
                     if (!sharedText.isNullOrBlank()) {
