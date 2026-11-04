@@ -25,6 +25,7 @@ jobs:
           python3 tools/patch_viewmodel_defaults.py
           python3 tools/patch_settings_reorder.py
           python3 tools/patch_custom_tabs.py
+          python3 tools/patch_pinned_shortcuts.py
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -37,26 +38,33 @@ jobs:
         with:
           packages: "platform-tools"
 
-      - name: Generate temporary keystore for Release
+      - name: Prepare persistent release signing key (or temporary first-build fallback)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.AIHUB_KEYSTORE_BASE64 }}
+          STORE_PASSWORD_SECRET: ${{ secrets.AIHUB_KEYSTORE_PASSWORD }}
+          KEY_ALIAS_SECRET: ${{ secrets.AIHUB_KEY_ALIAS }}
+          KEY_PASSWORD_SECRET: ${{ secrets.AIHUB_KEY_PASSWORD }}
         run: |
-          keytool -genkeypair \
-            -alias upload \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -keystore my-upload-key.jks \
-            -storepass android123 \
-            -keypass android123 \
-            -dname "CN=AI Hub, OU=Mobile, O=AIHub, L=Cairo, ST=Cairo, C=EG"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD_SECRET" ] && [ -n "$KEY_ALIAS_SECRET" ] && [ -n "$KEY_PASSWORD_SECRET" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/aihub-release.jks"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/aihub-release.jks" >> "$GITHUB_ENV"
+            echo "STORE_PASSWORD=$STORE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KEY_ALIAS_SECRET" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$KEY_PASSWORD_SECRET" >> "$GITHUB_ENV"
+            echo "Using the user's persistent release signing key."
+          else
+            keytool -genkeypair -alias upload -keyalg RSA -keysize 2048 -validity 10000 -keystore "$GITHUB_WORKSPACE/my-upload-key.jks" -storepass android123 -keypass android123 -dname "CN=AI Hub, OU=Mobile, O=AIHub, L=Cairo, ST=Cairo, C=EG"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> "$GITHUB_ENV"
+            echo "STORE_PASSWORD=android123" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=upload" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=android123" >> "$GITHUB_ENV"
+            echo "::warning::Persistent signing secrets are not configured. This APK uses a temporary key and cannot update another differently-signed build."
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build Release APK
-        env:
-          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
-          STORE_PASSWORD: android123
-          KEY_PASSWORD: android123
         run: |
           if [ -f ./gradlew ]; then
             chmod +x ./gradlew
