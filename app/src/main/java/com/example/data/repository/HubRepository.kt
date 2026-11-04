@@ -48,7 +48,8 @@ class HubRepository(
         currentSites.firstOrNull { it.id == DefaultSitesSeed.LEGACY_GOOGLE_ACCOUNTS_SITE_ID }?.let {
             siteDao.deleteSite(it)
         }
-        val existingIds = currentSites.map { it.id }.toSet()
+        val remainingSites = currentSites.filterNot { it.id == DefaultSitesSeed.LEGACY_GOOGLE_ACCOUNTS_SITE_ID }
+        val existingIds = remainingSites.map { it.id }.toSet()
         val deletedDefaultIds = settingsDataStore.getDeletedDefaultIds()
 
         val missingDefaults = DefaultSitesSeed.getDefaultSites().filter { defaultSite ->
@@ -56,10 +57,10 @@ class HubRepository(
         }
 
         if (missingDefaults.isNotEmpty()) {
-            if (currentSites.isEmpty()) {
+            if (remainingSites.isEmpty()) {
                 siteDao.insertSitesIgnoreExisting(missingDefaults)
             } else {
-                val maxSort = currentSites.maxOfOrNull { it.sortOrder } ?: -1
+                val maxSort = remainingSites.maxOfOrNull { it.sortOrder } ?: -1
                 val adjusted = missingDefaults.mapIndexed { idx, site ->
                     site.copy(sortOrder = maxSort + 1 + idx)
                 }
