@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
@@ -56,11 +58,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -93,6 +98,7 @@ fun SettingsScreen(
     onEditSiteClick: (SiteEntity) -> Unit,
     onToggleSiteEnabled: (SiteEntity) -> Unit,
     onMoveSiteOrder: (String, Boolean) -> Unit,
+    onReorderSites: (Int, Int) -> Unit,
     onDeleteSite: (SiteEntity) -> Unit,
     onClearSingleSiteData: (SiteEntity) -> Unit,
     onRestoreDefaults: () -> Unit,
@@ -133,6 +139,7 @@ fun SettingsScreen(
                 onEditSite = onEditSiteClick,
                 onToggleEnabled = onToggleSiteEnabled,
                 onMoveOrder = onMoveSiteOrder,
+                onReorderSites = onReorderSites,
                 onClearSiteSession = onClearSingleSiteData,
                 onDeleteSite = onDeleteSite,
                 modifier = modifier
@@ -609,11 +616,14 @@ private fun ManageSitesSubScreen(
     onEditSite: (SiteEntity) -> Unit,
     onToggleEnabled: (SiteEntity) -> Unit,
     onMoveOrder: (String, Boolean) -> Unit,
+    onReorderSites: (Int, Int) -> Unit,
     onClearSiteSession: (SiteEntity) -> Unit,
     onDeleteSite: (SiteEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
 
     Column(
         modifier = modifier
@@ -653,7 +663,15 @@ private fun ManageSitesSubScreen(
                 Card(
                     shape = MaterialTheme.shapes.medium,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            if (draggingIndex == index) {
+                                translationY = dragOffsetY
+                                shadowElevation = 18f
+                                alpha = 0.92f
+                            }
+                        }
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -696,20 +714,42 @@ private fun ManageSitesSubScreen(
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(
-                                onClick = { onMoveOrder(site.id, true) },
-                                enabled = index > 0,
-                                modifier = Modifier.testTag("move_up_${site.id}")
-                            ) {
-                                Icon(Icons.Filled.ArrowUpward, contentDescription = strings.moveUp)
-                            }
-                            IconButton(
-                                onClick = { onMoveOrder(site.id, false) },
-                                enabled = index < sites.lastIndex,
-                                modifier = Modifier.testTag("move_down_${site.id}")
-                            ) {
-                                Icon(Icons.Filled.ArrowDownward, contentDescription = strings.moveDown)
-                            }
+                            Icon(
+                                imageVector = Icons.Filled.DragHandle,
+                                contentDescription = "اضغط مطولاً واسحب لإعادة الترتيب",
+                                tint = if (draggingIndex == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .testTag("drag_handle_${site.id}")
+                                    .pointerInput(site.id, index, sites.size) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                draggingIndex = index
+                                                dragOffsetY = 0f
+                                            },
+                                            onDrag = { change, amount ->
+                                                change.consume()
+                                                dragOffsetY += amount.y
+                                                val threshold = 76.dp.toPx()
+                                                if (dragOffsetY > threshold && index < sites.lastIndex) {
+                                                    onReorderSites(index, index + 1)
+                                                    dragOffsetY -= threshold
+                                                } else if (dragOffsetY < -threshold && index > 0) {
+                                                    onReorderSites(index, index - 1)
+                                                    dragOffsetY += threshold
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                draggingIndex = null
+                                                dragOffsetY = 0f
+                                            },
+                                            onDragCancel = {
+                                                draggingIndex = null
+                                                dragOffsetY = 0f
+                                            }
+                                        )
+                                    }
+                            )
                             IconButton(
                                 onClick = { onClearSiteSession(site) },
                                 modifier = Modifier.testTag("manage_clear_data_${site.id}")
