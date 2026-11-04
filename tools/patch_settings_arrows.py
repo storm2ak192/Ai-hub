@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Manage Sites: keep up/down arrows + smooth long-press drag on whole card."""
 from pathlib import Path
+import re
 
 path = Path("app/src/main/java/com/example/ui/screens/SettingsScreen.kt")
 text = path.read_text(encoding="utf-8")
 
 # ---------------------------------------------------------------------------
-# Imports needed for smooth drag
+# Imports
 # ---------------------------------------------------------------------------
 if "detectDragGesturesAfterLongPress" not in text:
     text = text.replace(
@@ -36,7 +37,7 @@ if "mutableFloatStateOf" not in text:
 print("OK: imports")
 
 # ---------------------------------------------------------------------------
-# 1) Ensure arrow buttons exist (convert old DragHandle-only UI if needed)
+# Ensure arrows (convert DragHandle block if needed)
 # ---------------------------------------------------------------------------
 if "Icons.Filled.DragHandle" in text and "move_up_" not in text:
     start = text.find("imageVector = Icons.Filled.DragHandle")
@@ -67,142 +68,137 @@ if "Icons.Filled.DragHandle" in text and "move_up_" not in text:
 elif "move_up_" in text:
     print("OK: arrows present")
 else:
-    print("WARN: could not ensure arrows")
+    print("WARN: arrows missing")
 
 # ---------------------------------------------------------------------------
-# 2) Drag state in ManageSitesSubScreen (by site id for stable tracking)
+# Drag state by site id inside ManageSitesSubScreen only
 # ---------------------------------------------------------------------------
-if "var draggingSiteId" not in text:
-    # Remove any old index-based drag state first
-    text = text.replace(
+manage_idx = text.find("fun ManageSitesSubScreen")
+if manage_idx < 0:
+    raise SystemExit("ManageSitesSubScreen not found")
+
+# Strip old index-based drag state anywhere in ManageSites
+section = text[manage_idx:]
+section = section.replace(
+    "    var draggingIndex by remember { mutableStateOf<Int?>(null) }\n",
+    "",
+)
+section = re.sub(
+    r"    var dragOffsetY by remember \{ mutableFloatStateOf\(0f\) \}\n",
+    "",
+    section,
+    count=1,
+)
+
+if "var draggingSiteId" not in section:
+    section = section.replace(
+        "    val strings = LocalAppStrings.current\n",
         "    val strings = LocalAppStrings.current\n"
-        "    var draggingIndex by remember { mutableStateOf<Int?>(null) }\n"
-        "    var dragOffsetY by remember { mutableFloatStateOf(0f) }\n\n"
-        "    Column(",
-        "    val strings = LocalAppStrings.current\n\n"
-        "    Column(",
+        "    var draggingSiteId by remember { mutableStateOf<String?>(null) }\n"
+        "    var dragOffsetY by remember { mutableFloatStateOf(0f) }\n",
+        1,
     )
-    old = "    val strings = LocalAppStrings.current\n\n    Column("
-    # Only inject inside ManageSitesSubScreen
-    idx = text.find("fun ManageSitesSubScreen")
-    if idx != -1 and old in text[idx:]:
-        new = (
-            "    val strings = LocalAppStrings.current\n"
-            "    var draggingSiteId by remember { mutableStateOf<String?>(null) }\n"
-            "    var dragOffsetY by remember { mutableFloatStateOf(0f) }\n\n"
-            "    Column("
-        )
-        text = text[:idx] + text[idx:].replace(old, new, 1)
-        print("OK: drag state by site id")
-    else:
-        print("WARN: manage sites state inject point missing")
+    print("OK: drag state by site id")
 else:
     print("OK: drag state already")
 
+text = text[:manage_idx] + section
+
 # ---------------------------------------------------------------------------
-# 3) Full-card smooth long-press drag modifier (anywhere on the card)
+# Replace ManageSites Card opener with smooth full-card drag version
 # ---------------------------------------------------------------------------
-# Prefer replacing a plain fillMaxWidth card inside ManageSites
-manage_idx = text.find("fun ManageSitesSubScreen")
-if manage_idx < 0:
-    print("ERROR: ManageSitesSubScreen not found")
-    raise SystemExit(1)
+NEW_CARD = '''                Card(
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (draggingSiteId == site.id) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            if (draggingSiteId == site.id) {
+                                translationY = dragOffsetY
+                                shadowElevation = 28f
+                                scaleX = 1.03f
+                                scaleY = 1.03f
+                                alpha = 0.97f
+                            }
+                        }
+                        .pointerInput(site.id, sites.size) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    draggingSiteId = site.id
+                                    dragOffsetY = 0f
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragOffsetY += amount.y
+                                    val from = sites.indexOfFirst { it.id == draggingSiteId }
+                                    if (from < 0) return@detectDragGesturesAfterLongPress
+                                    val step = 96.dp.toPx()
+                                    if (dragOffsetY > step * 0.45f && from < sites.lastIndex) {
+                                        onReorderSites(from, from + 1)
+                                        dragOffsetY -= step * 0.45f
+                                    } else if (dragOffsetY < -step * 0.45f && from > 0) {
+                                        onReorderSites(from, from - 1)
+                                        dragOffsetY += step * 0.45f
+                                    }
+                                },
+                                onDragEnd = {
+                                    draggingSiteId = null
+                                    dragOffsetY = 0f
+                                },
+                                onDragCancel = {
+                                    draggingSiteId = null
+                                    dragOffsetY = 0f
+                                }
+                            )
+                        }
+                ) {'''
 
-# Find the sites LazyColumn card modifier after ManageSites
-section = text[manage_idx:]
-old_simple = (
-    "                Card(\n"
-    "                    shape = MaterialTheme.shapes.medium,\n"
-    "                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),\n"
-    "                    modifier = Modifier.fillMaxWidth()\n"
-    "                ) {"
-)
-
-# Also handle leftover graphicsLayer drag variants
-old_layered = (
-    "                Card(\n"
-    "                    shape = MaterialTheme.shapes.medium,\n"
-    "                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),\n"
-    "                    modifier = Modifier\n"
-    "                        .fillMaxWidth()\n"
-    "                        .graphicsLayer {\n"
-)
-
-new_card = (
-    "                Card(\n"
-    "                    shape = MaterialTheme.shapes.medium,\n"
-    "                    colors = CardDefaults.cardColors(\n"
-    "                        containerColor = if (draggingSiteId == site.id) {\n"
-    "                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)\n"
-    "                        } else {\n"
-    "                            MaterialTheme.colorScheme.surface\n"
-    "                        }\n"
-    "                    ),\n"
-    "                    modifier = Modifier\n"
-    "                        .fillMaxWidth()\n"
-    "                        .graphicsLayer {\n"
-    "                            if (draggingSiteId == site.id) {\n"
-    "                                translationY = dragOffsetY\n"
-    "                                shadowElevation = 28f\n"
-    "                                scaleX = 1.03f\n"
-    "                                scaleY = 1.03f\n"
-    "                                alpha = 0.97f\n"
-    "                            }\n"
-    "                        }\n"
-    "                        .pointerInput(site.id, sites.size) {\n"
-    "                            detectDragGesturesAfterLongPress(\n"
-    "                                onDragStart = {\n"
-    "                                    draggingSiteId = site.id\n"
-    "                                    dragOffsetY = 0f\n"
-    "                                },\n"
-    "                                onDrag = { change, amount ->\n"
-    "                                    change.consume()\n"
-    "                                    dragOffsetY += amount.y\n"
-    "                                    val from = sites.indexOfFirst { it.id == draggingSiteId }\n"
-    "                                    if (from < 0) return@detectDragGesturesAfterLongPress\n"
-    "                                    // ~card height + spacing; swap when crossing half item\n"
-    "                                    val step = 96.dp.toPx()\n"
-    "                                    if (dragOffsetY > step * 0.45f && from < sites.lastIndex) {\n"
-    "                                        onReorderSites(from, from + 1)\n"
-    "                                        dragOffsetY -= step * 0.45f\n"
-    "                                    } else if (dragOffsetY < -step * 0.45f && from > 0) {\n"
-    "                                        onReorderSites(from, from - 1)\n"
-    "                                        dragOffsetY += step * 0.45f\n"
-    "                                    }\n"
-    "                                },\n"
-    "                                onDragEnd = {\n"
-    "                                    draggingSiteId = null\n"
-    "                                    dragOffsetY = 0f\n"
-    "                                },\n"
-    "                                onDragCancel = {\n"
-    "                                    draggingSiteId = null\n"
-    "                                    dragOffsetY = 0f\n"
-    "                                }\n"
-    "                            )\n"
-    "                        }\n"
-    "                ) {"
-)
-
-if old_simple in section:
-    text = text[:manage_idx] + section.replace(old_simple, new_card, 1)
-    print("OK: smooth full-card drag on simple card")
-elif "draggingSiteId == site.id" in section and "detectDragGesturesAfterLongPress" in section:
-    print("OK: smooth drag already applied")
-elif old_layered in section:
-    # strip old layered block until ") {" of Card - harder; fall through with warning
-    print("WARN: layered card present — trying generic replace of first ManageSites Card opener")
-    # Replace first occurrence of Card with fillMaxWidth after manage_idx using simple pattern search
-    abs_pos = text.find(old_simple, manage_idx)
-    if abs_pos < 0:
-        # try to find fillMaxWidth-only card
-        print("WARN: could not locate card for drag enhance")
-    else:
-        text = text[:abs_pos] + new_card + text[abs_pos + len(old_simple):]
-        print("OK: smooth drag applied (fallback)")
+if "draggingSiteId == site.id" in text and "scaleX = 1.03f" in text:
+    print("OK: smooth full-card drag already applied")
 else:
-    print("WARN: ManageSites card pattern not found for drag enhance")
+    manage_idx = text.find("fun ManageSitesSubScreen")
+    # Match either simple or graphicsLayer card inside ManageSites
+    patterns = [
+        re.compile(
+            r"                Card\(\n"
+            r"                    shape = MaterialTheme\.shapes\.medium,\n"
+            r"                    colors = CardDefaults\.cardColors\(containerColor = MaterialTheme\.colorScheme\.surface\),\n"
+            r"                    modifier = Modifier\n"
+            r"                        \.fillMaxWidth\(\)\n"
+            r"                        \.graphicsLayer \{[\s\S]*?\n"
+            r"                        \}\n"
+            r"                \) \{",
+            re.M,
+        ),
+        re.compile(
+            r"                Card\(\n"
+            r"                    shape = MaterialTheme\.shapes\.medium,\n"
+            r"                    colors = CardDefaults\.cardColors\(containerColor = MaterialTheme\.colorScheme\.surface\),\n"
+            r"                    modifier = Modifier\.fillMaxWidth\(\)\n"
+            r"                \) \{",
+            re.M,
+        ),
+    ]
+    applied = False
+    for pat in patterns:
+        m = pat.search(text, manage_idx)
+        if m:
+            text = text[: m.start()] + NEW_CARD + text[m.end() :]
+            applied = True
+            print("OK: smooth full-card drag applied")
+            break
+    if not applied:
+        print("ERROR: could not locate ManageSites Card to enhance")
+        raise SystemExit(1)
 
 path.write_text(text, encoding="utf-8")
 print("has arrows", "move_up_" in text and "ArrowUpward" in text)
-print("has full-card drag", "draggingSiteId" in text and "detectDragGesturesAfterLongPress" in text)
+print("has smooth drag", "draggingSiteId" in text and "scaleX = 1.03f" in text)
+print("has draggingIndex leftover", "draggingIndex" in text)
 print("braces", text.count("{"), text.count("}"))
