@@ -112,10 +112,7 @@ fun HomeScreen(
             ) {
                 // Hero Header with Brand Logo & Name
                 item(key = "hero_banner") {
-                    HeroHeaderCard(
-                        appName = strings.appName,
-                        subtitle = strings.appSubtitle
-                    )
+                    HeroHeaderCard()
                 }
 
                 // Search Box
@@ -258,88 +255,43 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HeroHeaderCard(
-    appName: String,
-    subtitle: String
-) {
+private fun HeroHeaderCard() {
+    val shape = RoundedCornerShape(26.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(148.dp)
-            .clip(MaterialTheme.shapes.extraLarge)
+            .height(118.dp)
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF26364A),
+                        Color(0xFF34334F),
+                        Color(0xFF1D4650)
+                    )
+                )
+            )
             .border(
                 width = 1.dp,
                 brush = Brush.linearGradient(
                     colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
+                        Color(0xFF8BB9C8).copy(alpha = 0.65f),
+                        Color(0xFFA99AE0).copy(alpha = 0.55f)
                     )
                 ),
-                shape = MaterialTheme.shapes.extraLarge
+                shape = shape
             )
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.img_hub_hero_banner),
-            contentDescription = stringResource(R.string.cd_hero_banner),
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
+        Text(
+            text = "استغفر الله العظيم الذي لا إله إلا هو الحي القيوم وأتوب إليه",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            lineHeight = MaterialTheme.typography.titleMedium.lineHeight
         )
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            Color(0xE607070E),
-                            Color(0x9910111E)
-                        )
-                    )
-                )
-                .padding(20.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                    modifier = Modifier
-                        .size(60.dp)
-                        .border(
-                            1.5.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
-                            RoundedCornerShape(18.dp)
-                        )
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Filled.Hub,
-                            contentDescription = stringResource(R.string.cd_app_logo),
-                            tint = Color.White,
-                            modifier = Modifier.size(34.dp)
-                        )
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = appName,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFCBD5E1),
-                        maxLines = 2
-                    )
-                }
-            }
-        }
     }
 }
 
