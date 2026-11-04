@@ -24,7 +24,6 @@ jobs:
           python3 tools/fix_patched_browser.py
           python3 tools/patch_viewmodel_defaults.py
           python3 tools/patch_settings_reorder.py
-          python3 tools/patch_custom_tabs.py
           python3 tools/patch_pinned_shortcuts.py
 
       - name: Set up JDK 17
