@@ -75,9 +75,9 @@ object FaviconResolver {
             if (charsRead <= 0) return@withContext null
             val html = String(buffer, 0, charsRead)
 
-            val metaTags = Regex("""<meta\\b[^>]*>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            val contentRegex = Regex("""\\bcontent\\s*=\\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
-            val nameRegex = Regex("""\\b(?:name|property)\\s*=\\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+            val metaTags = Regex("""<meta\b[^>]*>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            val contentRegex = Regex("""\bcontent\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+            val nameRegex = Regex("""\b(?:name|property)\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
             val preferredKeys = listOf("description", "og:description", "twitter:description")
             val descriptions = metaTags.findAll(html).mapNotNull { match ->
                 val tag = match.value
@@ -88,7 +88,7 @@ object FaviconResolver {
             val rawDescription = preferredKeys.firstNotNullOfOrNull { key ->
                 descriptions.firstOrNull { it.first == key }?.second
             }
-            val title = Regex("""<title\\b[^>]*>(.*?)</title>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            val title = Regex("""<title\b[^>]*>(.*?)</title>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
                 .find(html)?.groupValues?.getOrNull(1)
             val host = URL(connection.url.toString()).host
             val selected = rawDescription ?: title ?: host
@@ -99,7 +99,7 @@ object FaviconResolver {
                 ?.replace("&#39;", "'")
                 ?.replace("&lt;", "<")
                 ?.replace("&gt;", ">")
-                ?.replace(Regex("""\\s+"""), " ")
+                ?.replace(Regex("""\s+"""), " ")
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
                 ?.take(180)
