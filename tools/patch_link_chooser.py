@@ -8,7 +8,7 @@ text = path.read_text(encoding="utf-8")
 # ---------------------------------------------------------------------------
 # 1) State for pending link choice
 # ---------------------------------------------------------------------------
-if "pendingLinkUrl" not in text:
+if "var pendingLinkUrl" not in text:
     old_popup_state = "var popupWebView by remember { mutableStateOf<WebView?>(null) }"
     new_popup_state = (
         "var popupWebView by remember { mutableStateOf<WebView?>(null) }\n"
