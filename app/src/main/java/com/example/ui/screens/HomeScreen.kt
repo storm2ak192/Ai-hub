@@ -227,7 +227,8 @@ fun HomeScreen(
                                 site = rowSites[0],
                                 onOpen = { onOpenSite(rowSites[0]) },
                                 onToggleFavorite = { onToggleFavorite(rowSites[0]) },
-                                onEdit = { onEditSite(rowSites[0]) }
+                                onEdit = { onEditSite(rowSites[0]) },
+                                onAddToHomeScreen = { onAddToHomeScreen(rowSites[0]) }
                             )
                         } else {
                             Row(
@@ -240,6 +241,7 @@ fun HomeScreen(
                                         onOpen = { onOpenSite(site) },
                                         onToggleFavorite = { onToggleFavorite(site) },
                                         onEdit = { onEditSite(site) },
+                                        onAddToHomeScreen = { onAddToHomeScreen(site) },
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
