@@ -7,12 +7,6 @@ t = p.read_text(encoding="utf-8")
 
 t = t.replace("view?.loadUrl(u)", "mainWv.loadUrl(u)")
 
-CHROME_UA = (
-    '"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"'
-)
-t = t.replace("CHROME_MOBILE_USER_AGENT", CHROME_UA)
-
 cleaned = []
 for line in t.splitlines(keepends=True):
     stripped = line.strip()
