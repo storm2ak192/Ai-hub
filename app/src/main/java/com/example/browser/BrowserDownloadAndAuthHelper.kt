@@ -11,7 +11,6 @@ import android.util.Base64
 import android.webkit.CookieManager
 import android.webkit.MimeTypeMap
 import android.webkit.URLUtil
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.net.toUri
 import androidx.webkit.ProfileStore
 import androidx.webkit.WebViewFeature
@@ -141,32 +140,6 @@ object BrowserDownloadAndAuthHelper {
             }
         } catch (_: Throwable) {
             CookieManager.getInstance().getCookie(url)
-        }
-    }
-
-    /**
-     * Opens Google/Apple OAuth in a Chrome Custom Tab (secure & accepted by Google).
-     * After the user finishes login and presses Back/X, they return to AI Hub.
-     * The calling screen should reload the WebView on resume to pick up the session.
-     */
-    fun launchSecureExternalAuthTab(context: Context, url: String) {
-        try {
-            val customTabsIntent = CustomTabsIntent.Builder()
-                .setShowTitle(true)
-                .setUrlBarHidingEnabled(false)
-                .setShareState(CustomTabsIntent.SHARE_STATE_OFF)
-                .build()
-            customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
-            customTabsIntent.launchUrl(context, url.toUri())
-        } catch (_: Exception) {
-            try {
-                val browserIntent = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
-                }
-                context.startActivity(browserIntent)
-            } catch (_: Exception) {
-            }
         }
     }
 
