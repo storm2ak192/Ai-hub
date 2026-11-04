@@ -65,5 +65,21 @@ t = replace_once(
     '                                        onAddSiteClick = {',
     "HomeScreen shortcut callback"
 )
+# Favorite cards expose the same pin action.
+t = replace_once(
+    t,
+    '                                        onEditSite = { site ->\n'
+    '                                            editingSite = site\n'
+    '                                            showAddEditDialog = true\n'
+    '                                        }\n'
+    '                                    )',
+    '                                        onEditSite = { site ->\n'
+    '                                            editingSite = site\n'
+    '                                            showAddEditDialog = true\n'
+    '                                        },\n'
+    '                                        onAddToHomeScreen = { viewModel.pinSiteShortcut(it) }\n'
+    '                                    )',
+    "FavoritesScreen shortcut callback"
+)
 p.write_text(t, encoding="utf-8")
 print("Pinned website shortcuts wired.")
