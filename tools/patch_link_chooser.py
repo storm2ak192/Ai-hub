@@ -47,7 +47,7 @@ new_create = (
     f"{indent}            req: WebResourceRequest?\n"
     f"{indent}        ): Boolean {{\n"
     f"{indent}            val u = req?.url?.toString() ?: return true\n"
-    f"{indent}            if (req.isForMainFrame && u.startsWith(\"http\")) {{\n"
+    f"{indent}            if (req.isForMainFrame && u.startsWith(\"https://\", ignoreCase = true) && UrlSecurityValidator.isSafeWebUrl(u)) {{\n"
     f"{indent}                pendingLinkUrl = u\n"
     f"{indent}                try {{ probe.stopLoading(); probe.destroy() }} catch (_: Exception) {{}}\n"
     f"{indent}                return true\n"
@@ -55,7 +55,7 @@ new_create = (
     f"{indent}            return false\n"
     f"{indent}        }}\n"
     f"{indent}        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {{\n"
-    f"{indent}            if (!url.isNullOrBlank() && url.startsWith(\"http\") && pendingLinkUrl == null) {{\n"
+    f"{indent}            if (!url.isNullOrBlank() && url.startsWith(\"https://\", ignoreCase = true) && UrlSecurityValidator.isSafeWebUrl(url) && pendingLinkUrl == null) {{\n"
     f"{indent}                pendingLinkUrl = url\n"
     f"{indent}                try {{ probe.stopLoading(); probe.destroy() }} catch (_: Exception) {{}}\n"
     f"{indent}            }}\n"
@@ -116,6 +116,15 @@ chooser_dialog = r'''
                                     site = currentSite,
                                     defaultMobileUa = defaultMobileUserAgent
                                 )
+                                // Tighten the popup independently of the parent site's settings.
+                                childWv.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                                childWv.settings.allowFileAccess = false
+                                childWv.settings.allowContentAccess = false
+                                childWv.settings.allowFileAccessFromFileURLs = false
+                                childWv.settings.allowUniversalAccessFromFileURLs = false
+                                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                    childWv.settings.safeBrowsingEnabled = true
+                                }
                                 childWv.webViewClient = object : WebViewClient() {
                                     override fun shouldOverrideUrlLoading(
                                         v: WebView?,
@@ -123,7 +132,7 @@ chooser_dialog = r'''
                                     ): Boolean {
                                         val u = req?.url?.toString() ?: return false
                                         val scheme = req.url?.scheme?.lowercase() ?: ""
-                                        if (scheme != "https" && scheme != "http") {
+                                        if (scheme != "https" || !UrlSecurityValidator.isSafeWebUrl(u)) {
                                             return try {
                                                 if (scheme in setOf("mailto", "tel")) {
                                                     context.startActivity(Intent(Intent.ACTION_VIEW, req.url))
@@ -134,6 +143,14 @@ chooser_dialog = r'''
                                             }
                                         }
                                         return false
+                                    }
+
+                                    override fun onReceivedSslError(
+                                        view: WebView?,
+                                        handler: android.webkit.SslErrorHandler?,
+                                        error: android.net.http.SslError?
+                                    ) {
+                                        handler?.cancel()
                                     }
                                 }
                                 childWv.webChromeClient = object : WebChromeClient() {
