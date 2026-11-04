@@ -368,9 +368,9 @@ if route_start >= 0 and "pendingLinkUrl = targetStr" not in text:
         "                                    val currentHost = UrlSecurityValidator.extractNormalizedHost(currentSite.url)\n"
         "                                    val targetHost = UrlSecurityValidator.extractNormalizedHost(targetStr)\n"
         "                                    if (currentHost != null && targetHost != null &&\n"
-        "                                        targetHost != currentHost && !targetHost.endsWith(\\".\\" + currentHost)\n"
+        "                                        targetHost != currentHost && !targetHost.endsWith(\".\" + currentHost)\n"
         "                                    ) {\n"
-        "                                        if (targetStr.startsWith(\\"https://\\", ignoreCase = true) &&\n"
+        "                                        if (targetStr.startsWith(\"https://\", ignoreCase = true) &&\n"
         "                                            UrlSecurityValidator.isSafeWebUrl(targetStr)\n"
         "                                        ) {\n"
         "                                            pendingLinkUrl = targetStr\n"
@@ -381,7 +381,6 @@ if route_start >= 0 and "pendingLinkUrl = targetStr" not in text:
         "                                    }\n"
         "                                    if (!UrlSecurityValidator.isSafeWebUrl(targetStr)) return true"
     )
-    text = text[:route_start] + chooser_route + text[route_end + len("\\n                                    }"):]
     print("OK: same-window cross-site links use the link chooser")
 elif "pendingLinkUrl = targetStr" in text:
     print("OK: cross-site link chooser already present")
