@@ -155,10 +155,6 @@ object BrowserDownloadAndAuthHelper {
     }
 
     /**
-     * Opens [url] in a Chrome Custom Tab (in-app browser sheet).
-     * Falls back to a normal external browser intent if Custom Tabs is unavailable.
-     */
-    /**
      * Opens a validated HTTPS URL in a Chrome Custom Tab.
      * Does not silently fall back to ACTION_VIEW: that could open a full browser
      * instead of the Custom Tab the user explicitly selected.
@@ -175,4 +171,5 @@ object BrowserDownloadAndAuthHelper {
             .setShareState(CustomTabsIntent.SHARE_STATE_ON)
             .build()
         customTabsIntent.launchUrl(context, url.toUri())
-    }}
+    }
+}
