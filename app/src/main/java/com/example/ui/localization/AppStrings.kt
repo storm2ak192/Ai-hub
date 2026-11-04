@@ -143,7 +143,7 @@ val DefaultSeedEnglishDescriptions = setOf(
 
 val ArabicStrings = AppStrings(
     appName = "AI Hub",
-    appSubtitle = "مساحة موحدة ومعزولة الجلسات لجميع مواقعك",
+    appSubtitle = "استغفر الله العظيم الذي لا إله إلا هو الحي القيوم وأتوب إليه",
     searchPlaceholder = "ابحث عن موقع أو أداة ذكاء اصطناعي...",
     navHome = "الرئيسية",
     navFavorites = "المفضلة",
@@ -263,7 +263,7 @@ val ArabicStrings = AppStrings(
 
 val EnglishStrings = AppStrings(
     appName = "AI Hub",
-    appSubtitle = "Unified Workspace with Isolated Sessions for Every Site",
+    appSubtitle = "استغفر الله العظيم الذي لا إله إلا هو الحي القيوم وأتوب إليه",
     searchPlaceholder = "Search AI platforms or websites...",
     navHome = "Home",
     navFavorites = "Favorites",
