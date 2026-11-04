@@ -2,6 +2,9 @@ name: Build Release APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/custom-tabs-migration
 
 jobs:
   build:
@@ -30,6 +33,7 @@ jobs:
           grep -q 'move_up_' app/src/main/java/com/example/ui/screens/SettingsScreen.kt
           grep -q 'move_down_' app/src/main/java/com/example/ui/screens/SettingsScreen.kt
           ! grep -Eq 'DragHandle|detectDragGesturesAfterLongPress|draggingIndex' app/src/main/java/com/example/ui/screens/SettingsScreen.kt
+          grep -q 'var pendingLinkUrl' app/src/main/java/com/example/ui/screens/BrowserScreen.kt
           grep -q 'pendingLinkUrl' app/src/main/java/com/example/ui/screens/BrowserScreen.kt
           grep -q 'onOpenMatchedSite' app/src/main/java/com/example/ui/AIHubApp.kt
           grep -q 'SecureExternalLinkDialog' app/src/main/java/com/example/ui/AIHubApp.kt
