@@ -3,7 +3,6 @@ package com.example.browser
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
@@ -12,14 +11,16 @@ import android.widget.Toast
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.core.graphics.drawable.toBitmap
 import com.example.MainActivity
 import com.example.data.local.SiteEntity
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
 
 object PinnedSiteShortcutManager {
     const val ACTION_OPEN_PINNED_SITE = "com.aistudio.aihub.nxqvtr.action.OPEN_PINNED_SITE"
@@ -36,13 +37,18 @@ object PinnedSiteShortcutManager {
         }
 
         CoroutineScope(Dispatchers.IO).launch {
-            val iconBitmap = loadSiteIcon(site.iconUrl) ?: createFallbackIcon(site)
+            val iconBitmap = buildShortcutIcon(context, site)
             withContext(Dispatchers.Main) {
                 val shortcutIntent = Intent(context, MainActivity::class.java).apply {
                     action = ACTION_OPEN_PINNED_SITE
                     putExtra(EXTRA_SITE_ID, site.id)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
                 }
+
                 val shortcut = ShortcutInfoCompat.Builder(context, "site_" + site.id)
                     .setShortLabel(site.name.take(25))
                     .setLongLabel(site.name)
@@ -64,54 +70,68 @@ object PinnedSiteShortcutManager {
         }
     }
 
-    private fun loadSiteIcon(iconUrl: String?): Bitmap? {
-        if (iconUrl.isNullOrBlank() || !iconUrl.startsWith("https://")) return null
-        var connection: HttpURLConnection? = null
-        return try {
-            connection = (URL(iconUrl).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 5000
-                readTimeout = 5000
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "AI-Hub-Android")
-            }
-            connection.connect()
-            if (connection.responseCode !in 200..299) return null
-            val bytes = connection.inputStream.use { input ->
-                val output = java.io.ByteArrayOutputStream()
-                val buffer = ByteArray(8192)
-                var total = 0
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count <= 0) break
-                    total += count
-                    if (total > 2 * 1024 * 1024) return null
-                    output.write(buffer, 0, count)
-                }
-                output.toByteArray()
-            }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        } catch (_: Exception) {
-            null
-        } finally {
-            connection?.disconnect()
-        }
-    }
-
-    private fun createFallbackIcon(site: SiteEntity): Bitmap {
-        val size = 192
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    /**
+     * Use the exact same iconUrl source as SiteIconBadge/Coil in the app.
+     * Coil also shares its disk and memory cache with the visible site cards.
+     */
+    private suspend fun buildShortcutIcon(context: Context, site: SiteEntity): Bitmap {
+        val bitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = site.accentColorHex.toInt()
-        canvas.drawRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), 38f, 38f, paint)
-        paint.color = android.graphics.Color.WHITE
-        paint.textAlign = Paint.Align.CENTER
-        paint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
-        paint.textSize = 100f
-        val initial = site.name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
-        val baseline = size / 2f - (paint.ascent() + paint.descent()) / 2f
-        canvas.drawText(initial, size / 2f, baseline, paint)
+        val accent = site.accentColorHex.toInt()
+
+        paint.color = accent
+        canvas.drawRoundRect(RectF(0f, 0f, 192f, 192f), 42f, 42f, paint)
+
+        val icon = loadCoilIcon(context, site.iconUrl)
+        if (icon != null) {
+            val maxSize = 122f
+            val scale = minOf(maxSize / icon.width, maxSize / icon.height)
+            val drawWidth = icon.width * scale
+            val drawHeight = icon.height * scale
+            val left = (192f - drawWidth) / 2f
+            val top = (192f - drawHeight) / 2f
+            val destination = RectF(left, top, left + drawWidth, top + drawHeight)
+            paint.isFilterBitmap = true
+            canvas.drawBitmap(icon, null, destination, paint)
+            if (icon !== bitmap && !icon.isRecycled) icon.recycle()
+        } else {
+            // Same accent color and site identity as the app's fallback icon treatment.
+            paint.color = android.graphics.Color.WHITE
+            paint.textAlign = Paint.Align.CENTER
+            paint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            paint.textSize = 104f
+            val initial = site.name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+            val baseline = 96f - (paint.ascent() + paint.descent()) / 2f
+            canvas.drawText(initial, 96f, baseline, paint)
+        }
+
         return bitmap
+    }
+
+    private suspend fun loadCoilIcon(context: Context, iconUrl: String?): Bitmap? {
+        if (iconUrl.isNullOrBlank()) return null
+        return try {
+            val request = ImageRequest.Builder(context)
+                .data(iconUrl)
+                .size(128)
+                .allowHardware(false)
+                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                .build()
+            val result = context.imageLoader.execute(request)
+            if (result is SuccessResult) {
+                result.drawable.toBitmap(
+                    width = 128,
+                    height = 128,
+                    config = Bitmap.Config.ARGB_8888
+                )
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun isArabic(context: Context): Boolean {
