@@ -232,6 +232,29 @@ t = re.sub(
 )
 p.write_text(t, encoding="utf-8")
 
+# Remove per-site WebView-only controls from the site editor. The selected browser
+# now owns JavaScript, camera/microphone, pop-up, download and desktop-mode controls.
+p = JAVA / "ui/components/AddEditSiteDialog.kt"
+t = p.read_text(encoding="utf-8")
+for tag in [
+    "toggle_site_js",
+    "toggle_site_camera",
+    "toggle_site_mic",
+    "toggle_site_popups",
+    "toggle_site_downloads",
+    "toggle_site_desktop_mode",
+]:
+    pattern = (
+        r'                PermissionToggleRow\\(\\n'
+        r'                    label = strings\\.[A-Za-z0-9_]+,\\n'
+        r'                    checked = [A-Za-z0-9_]+,\\n'
+        r'                    onCheckedChange = \\{ [A-Za-z0-9_]+ = it \\},\\n'
+        r'                    tag = "' + re.escape(tag) + r'"\\n'
+        r'                \\)\\n'
+    )
+    t = re.sub(pattern, "", t, count=1)
+p.write_text(t, encoding="utf-8")
+
 # 5) Wire the new screen and setting into the restored AIHubApp source.
 p = JAVA / "ui/AIHubApp.kt"
 t = p.read_text(encoding="utf-8")
