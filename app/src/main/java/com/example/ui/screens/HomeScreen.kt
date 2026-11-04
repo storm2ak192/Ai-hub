@@ -65,6 +65,7 @@ fun HomeScreen(
     onOpenSite: (SiteEntity) -> Unit,
     onToggleFavorite: (SiteEntity) -> Unit,
     onEditSite: (SiteEntity) -> Unit,
+    onAddToHomeScreen: (SiteEntity) -> Unit,
     onAddSiteClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
