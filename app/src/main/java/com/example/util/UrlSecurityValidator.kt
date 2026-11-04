@@ -33,8 +33,18 @@ object UrlSecurityValidator {
             val scheme = uri.scheme?.lowercase(Locale.US) ?: return false
             if (scheme in BLOCKED_SCHEMES) return false
             if (scheme != "https" && scheme != "http") return false
+            // Reject credential-bearing URLs and malformed explicit ports.
+            if (uri.userInfo != null) return false
+            if (uri.port != -1 && uri.port !in 1..65535) return false
             val host = uri.host?.trim()?.lowercase(Locale.US) ?: return false
-            if (host.isEmpty() || !host.contains(".") || host.contains(" ")) return false
+            if (
+                host.isEmpty() ||
+                !host.contains(".") ||
+                host.contains(" ") ||
+                host.startsWith(".") ||
+                host.endsWith(".") ||
+                host.contains("..")
+            ) return false
             true
         } catch (_: Exception) {
             false
