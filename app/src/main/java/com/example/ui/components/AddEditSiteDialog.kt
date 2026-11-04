@@ -214,6 +214,7 @@ fun AddEditSiteDialog(
                     value = url,
                     onValueChange = {
                         url = it
+                        if (existingSite == null) isDescriptionManuallyEdited = false
                         errorMessage = null
                     },
                     label = { Text(strings.fieldSiteUrl) },
