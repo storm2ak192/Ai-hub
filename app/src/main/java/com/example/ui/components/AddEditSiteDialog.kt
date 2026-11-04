@@ -84,6 +84,7 @@ fun AddEditSiteDialog(
     var name by remember(existingSite) { mutableStateOf(existingSite?.name ?: "") }
     var url by remember(existingSite) { mutableStateOf(existingSite?.url ?: "https://") }
     var description by remember(existingSite) { mutableStateOf(existingSite?.description ?: "") }
+    var isDescriptionManuallyEdited by remember(existingSite) { mutableStateOf(existingSite != null) }
     var customIconUrl by remember(existingSite) {
         val stored = existingSite?.iconUrl ?: ""
         mutableStateOf(if (stored.contains("google.com/s2/favicons")) "" else stored)
@@ -126,6 +127,12 @@ fun AddEditSiteDialog(
         val discovered = FaviconResolver.discoverOriginalSiteIconUrl(validUrl)
         if (!discovered.isNullOrBlank()) {
             autoDiscoveredIconUrl = discovered
+        }
+        if (existingSite == null && !isDescriptionManuallyEdited) {
+            val discoveredDescription = FaviconResolver.discoverSiteDescription(validUrl)
+            if (!discoveredDescription.isNullOrBlank() && !isDescriptionManuallyEdited) {
+                description = discoveredDescription
+            }
         }
         isFetchingOriginalIcon = false
     }
@@ -218,7 +225,10 @@ fun AddEditSiteDialog(
 
                 OutlinedTextField(
                     value = description,
-                    onValueChange = { description = it },
+                    onValueChange = {
+                        description = it
+                        isDescriptionManuallyEdited = true
+                    },
                     label = { Text(strings.fieldSiteDesc) },
                     maxLines = 2,
                     modifier = Modifier
