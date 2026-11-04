@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
-# HubViewModel: default Favorites + reorderSites
+# HubViewModel: always default to Home + reorderSites
 vm = Path("app/src/main/java/com/example/ui/viewmodel/HubViewModel.kt")
 t = vm.read_text(encoding="utf-8")
 t = t.replace(
@@ -26,7 +26,7 @@ elif "fun reorderSites" in t:
 else:
     print("WARN: moveSiteOrder not found")
 vm.write_text(t, encoding="utf-8")
-print("OK: default tab", "FAVORITES" in t)
+print("OK: default tab is Home", "MutableStateFlow(BottomNavTab.HOME)" in t)
 
 # HubRepository: reorderSites
 repo = Path("app/src/main/java/com/example/data/repository/HubRepository.kt")
