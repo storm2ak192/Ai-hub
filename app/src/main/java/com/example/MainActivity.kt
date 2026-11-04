@@ -47,6 +47,10 @@ class MainActivity : ComponentActivity() {
     private fun processIncomingIntent(incoming: Intent?) {
         if (incoming == null) return
         when (incoming.action) {
+            com.example.browser.PinnedSiteShortcutManager.ACTION_OPEN_PINNED_SITE -> {
+                val siteId = incoming.getStringExtra(com.example.browser.PinnedSiteShortcutManager.EXTRA_SITE_ID)
+                if (!siteId.isNullOrBlank()) viewModel.openPinnedSite(siteId)
+            }
             Intent.ACTION_VIEW -> {
                 val url = incoming.dataString
                 if (!url.isNullOrBlank()) {
