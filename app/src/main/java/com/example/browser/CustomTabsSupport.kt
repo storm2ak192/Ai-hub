@@ -290,10 +290,11 @@ fun CustomTabsBrowserScreen(
     if (showPicker) {
         BrowserProviderPickerDialog(
             selectedPackage = selectedBrowserPackage,
-            firstUse = selectedBrowserPackage.isNullOrBlank(),
+            firstUse = selectedBrowserPackage.isNullOrBlank() ||
+                providers.none { it.packageName == selectedBrowserPackage },
             language = language,
             onDismiss = {
-                if (!selectedBrowserPackage.isNullOrBlank()) showPicker = false
+                if (providers.any { it.packageName == selectedBrowserPackage }) showPicker = false
             },
             onSelect = { provider ->
                 showPicker = false
