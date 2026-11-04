@@ -4,19 +4,14 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.RectF
-import android.graphics.Typeface
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.os.Build
 import android.widget.Toast
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
-import androidx.core.graphics.drawable.toBitmap
 import com.example.MainActivity
 import com.example.data.local.SiteEntity
-import coil.imageLoader
-import coil.request.ImageRequest
-import coil.request.SuccessResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,7 +32,8 @@ object PinnedSiteShortcutManager {
         }
 
         CoroutineScope(Dispatchers.IO).launch {
-            val iconBitmap = buildShortcutIcon(context, site)
+            val iconBitmap = buildAppIcon(context)
+            val appLabel = context.packageManager.getApplicationLabel(context.applicationInfo).toString()
             withContext(Dispatchers.Main) {
                 val shortcutIntent = Intent(context, MainActivity::class.java).apply {
                     action = ACTION_OPEN_PINNED_SITE
@@ -49,9 +45,10 @@ object PinnedSiteShortcutManager {
                     )
                 }
 
+                val label = appLabel.ifBlank { "AI Hub" }
                 val shortcut = ShortcutInfoCompat.Builder(context, "site_" + site.id)
-                    .setShortLabel(site.name.take(25))
-                    .setLongLabel(site.name)
+                    .setShortLabel(label.take(25))
+                    .setLongLabel(label)
                     .setIcon(IconCompat.createWithBitmap(iconBitmap))
                     .setIntent(shortcutIntent)
                     .build()
@@ -71,67 +68,26 @@ object PinnedSiteShortcutManager {
     }
 
     /**
-     * Use the exact same iconUrl source as SiteIconBadge/Coil in the app.
-     * Coil also shares its disk and memory cache with the visible site cards.
+     * Render only the foreground layer of the app's adaptive launcher icon.
+     * The transparent bitmap deliberately omits the adaptive icon background.
      */
-    private suspend fun buildShortcutIcon(context: Context, site: SiteEntity): Bitmap {
-        val bitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+    private fun buildAppIcon(context: Context): Bitmap {
+        val size = 192
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val accent = site.accentColorHex.toInt()
-
-        paint.color = accent
-        canvas.drawRoundRect(RectF(0f, 0f, 192f, 192f), 42f, 42f, paint)
-
-        val icon = loadCoilIcon(context, site.iconUrl)
-        if (icon != null) {
-            val maxSize = 122f
-            val scale = minOf(maxSize / icon.width, maxSize / icon.height)
-            val drawWidth = icon.width * scale
-            val drawHeight = icon.height * scale
-            val left = (192f - drawWidth) / 2f
-            val top = (192f - drawHeight) / 2f
-            val destination = RectF(left, top, left + drawWidth, top + drawHeight)
-            paint.isFilterBitmap = true
-            canvas.drawBitmap(icon, null, destination, paint)
-            if (icon !== bitmap && !icon.isRecycled) icon.recycle()
+        val appDrawable = context.packageManager.getApplicationIcon(context.applicationInfo)
+        val drawable = if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            appDrawable is AdaptiveIconDrawable
+        ) {
+            appDrawable.foreground ?: appDrawable
         } else {
-            // Same accent color and site identity as the app's fallback icon treatment.
-            paint.color = android.graphics.Color.WHITE
-            paint.textAlign = Paint.Align.CENTER
-            paint.typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            paint.textSize = 104f
-            val initial = site.name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
-            val baseline = 96f - (paint.ascent() + paint.descent()) / 2f
-            canvas.drawText(initial, 96f, baseline, paint)
+            appDrawable
         }
-
+        val inset = (size * 0.08f).toInt()
+        drawable.setBounds(inset, inset, size - inset, size - inset)
+        drawable.draw(canvas)
         return bitmap
-    }
-
-    private suspend fun loadCoilIcon(context: Context, iconUrl: String?): Bitmap? {
-        if (iconUrl.isNullOrBlank()) return null
-        return try {
-            val request = ImageRequest.Builder(context)
-                .data(iconUrl)
-                .size(128)
-                .allowHardware(false)
-                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-                .build()
-            val result = context.imageLoader.execute(request)
-            if (result is SuccessResult) {
-                result.drawable.toBitmap(
-                    width = 128,
-                    height = 128,
-                    config = Bitmap.Config.ARGB_8888
-                )
-            } else {
-                null
-            }
-        } catch (_: Exception) {
-            null
-        }
     }
 
     private fun isArabic(context: Context): Boolean {
