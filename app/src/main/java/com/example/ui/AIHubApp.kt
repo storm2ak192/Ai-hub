@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -46,12 +49,15 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,6 +71,11 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.viewmodel.BottomNavTab
 import com.example.ui.viewmodel.HubViewModel
+import com.example.util.UrlSecurityValidator
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 
 @Composable
 fun AIHubApp(
@@ -88,6 +99,7 @@ fun AIHubApp(
     val snackbarHostState = remember { SnackbarHostState() }
     var showAddEditDialog by remember { mutableStateOf(false) }
     var editingSite by remember { mutableStateOf<SiteEntity?>(null) }
+    var pendingSecurePopupUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(snackbarMessage) {
         val msg = snackbarMessage
@@ -347,12 +359,15 @@ fun AIHubApp(
                         Text(strings.browserAddAndOpen)
                     }
                     OutlinedButton(
-                        onClick = { viewModel.openUntrustedLinkEphemeral(pending) },
+                        onClick = {
+                            pendingSecurePopupUrl = pending.fullUrl
+                            viewModel.dismissPendingUntrustedLink()
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("untrusted_open_once_btn")
                     ) {
-                        Text(strings.browserOpenOnceIsolated)
+                        Text(strings.browserOpenInSecurePopup)
                     }
                     TextButton(
                         onClick = { viewModel.dismissPendingUntrustedLink() },
@@ -363,6 +378,106 @@ fun AIHubApp(
                 }
             }
         )
+    }
+
+    pendingSecurePopupUrl?.let { popupUrl ->
+        SecureExternalLinkDialog(
+            url = popupUrl,
+            onDismiss = { pendingSecurePopupUrl = null }
+        )
+    }
+}
+
+@Composable
+private fun SecureExternalLinkDialog(
+    url: String,
+    onDismiss: () -> Unit
+) {
+    var popupWebView by remember(url) { mutableStateOf<WebView?>(null) }
+
+    DisposableEffect(url) {
+        onDispose {
+            popupWebView?.stopLoading()
+            popupWebView?.destroy()
+            popupWebView = null
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.96f)
+                .fillMaxHeight(0.84f),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp)
+            ) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(
+                        text = url,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Filled.Close,
+                            contentDescription = "Close secure popup"
+                        )
+                    }
+                }
+                AndroidView(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    factory = { context ->
+                        WebView(context).apply {
+                            popupWebView = this
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                            settings.allowFileAccess = false
+                            settings.allowContentAccess = false
+                            settings.allowFileAccessFromFileURLs = false
+                            settings.allowUniversalAccessFromFileURLs = false
+                            settings.setSupportMultipleWindows(false)
+                            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                settings.safeBrowsingEnabled = true
+                            }
+                            webChromeClient = WebChromeClient()
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView?,
+                                    request: WebResourceRequest?
+                                ): Boolean {
+                                    val target = request?.url?.toString() ?: return true
+                                    return !target.startsWith("https://", ignoreCase = true) ||
+                                        !UrlSecurityValidator.isSafeWebUrl(target)
+                                }
+
+                                override fun onReceivedSslError(
+                                    view: WebView?,
+                                    handler: android.webkit.SslErrorHandler?,
+                                    error: android.net.http.SslError?
+                                ) {
+                                    handler?.cancel()
+                                }
+                            }
+                            loadUrl(url)
+                        }
+                    },
+                    update = { webView ->
+                        if (webView.url != url && webView.url.isNullOrBlank()) webView.loadUrl(url)
+                    }
+                )
+            }
+        }
     }
 }
 
