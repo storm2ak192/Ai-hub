@@ -430,10 +430,7 @@ private fun SecureExternalLinkDialog(
                         style = MaterialTheme.typography.labelMedium
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Filled.Clear,
-                            contentDescription = "Close secure popup"
-                        )
+                        Text("×", style = MaterialTheme.typography.titleLarge)
                     }
                 }
                 AndroidView(
