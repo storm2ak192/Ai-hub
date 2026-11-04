@@ -156,6 +156,15 @@ class HubRepository(
         siteDao.updateSites(reindexed)
     }
 
+    suspend fun reorderSites(fromIndex: Int, toIndex: Int) {
+        if (fromIndex == toIndex) return
+        val ordered = siteDao.getAllSitesSnapshot().sortedBy { it.sortOrder }.toMutableList()
+        if (fromIndex !in ordered.indices || toIndex !in ordered.indices) return
+        val moving = ordered.removeAt(fromIndex)
+        ordered.add(toIndex, moving)
+        siteDao.updateSites(ordered.mapIndexed { index, site -> site.copy(sortOrder = index) })
+    }
+
     suspend fun restoreDefaultSites() {
         settingsDataStore.clearDeletedDefaultIds()
         val currentSites = siteDao.getAllSitesSnapshot()
