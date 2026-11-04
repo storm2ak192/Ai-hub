@@ -11,6 +11,7 @@ import android.util.Base64
 import android.webkit.CookieManager
 import android.webkit.MimeTypeMap
 import android.webkit.URLUtil
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.net.toUri
 import androidx.webkit.ProfileStore
 import androidx.webkit.WebViewFeature
@@ -150,6 +151,33 @@ object BrowserDownloadAndAuthHelper {
             }
             context.startActivity(intent)
         } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * Opens [url] in a Chrome Custom Tab (in-app browser sheet).
+     * Falls back to a normal external browser intent if Custom Tabs is unavailable.
+     */
+    fun openCustomTab(context: Context, url: String) {
+        if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
+            return
+        }
+        try {
+            val customTabsIntent = CustomTabsIntent.Builder()
+                .setShowTitle(true)
+                .setUrlBarHidingEnabled(true)
+                .setShareState(CustomTabsIntent.SHARE_STATE_ON)
+                .build()
+            customTabsIntent.launchUrl(context, url.toUri())
+        } catch (_: Exception) {
+            try {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, url.toUri()).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            } catch (_: Exception) {
+            }
         }
     }
 }
