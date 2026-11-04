@@ -381,6 +381,7 @@ if route_start >= 0 and "pendingLinkUrl = targetStr" not in text:
         "                                    }\n"
         "                                    if (!UrlSecurityValidator.isSafeWebUrl(targetStr)) return true"
     )
+    text = text[:route_start] + chooser_route + text[route_end + len("\n                                    }"):]
     print("OK: same-window cross-site links use the link chooser")
 elif "pendingLinkUrl = targetStr" in text:
     print("OK: cross-site link chooser already present")
