@@ -111,66 +111,8 @@ if "fabMenuExpanded" not in text:
         print("OK: fab state")
 
 # ---------------------------------------------------------------------------
-# 4) Chrome-like UA constants (no "wv" so Google is less likely to block)
-# ---------------------------------------------------------------------------
-old_desktop_ua = (
-    "private val DESKTOP_USER_AGENT =\n"
-    "    \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\""
-)
-new_desktop_ua = (
-    "private val DESKTOP_USER_AGENT =\n"
-    "    \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\"\n\n"
-    "/** Chrome mobile UA without the WebView marker (\"; wv\") that Google rejects. */\n"
-    "private val CHROME_MOBILE_USER_AGENT =\n"
-    "    \"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36\""
-)
-if "CHROME_MOBILE_USER_AGENT" not in text and old_desktop_ua in text:
-    text = text.replace(old_desktop_ua, new_desktop_ua, 1)
-    print("OK: Chrome mobile UA constant")
+# 4-5) Keep the platform WebView user agent unchanged; do not spoof Chrome for Google OAuth.
 
-# ---------------------------------------------------------------------------
-# 5) applyDesktopAndZoomSettings: never use stock WebView UA with "wv"
-# ---------------------------------------------------------------------------
-old_ua_branch = (
-    "if (desktopMode) {\n"
-    "            userAgentString = DESKTOP_USER_AGENT\n"
-    "            useWideViewPort = true\n"
-    "            loadWithOverviewMode = true\n"
-    "            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL\n"
-    "        } else {\n"
-    "            userAgentString = defaultMobileUa ?: WebSettings.getDefaultUserAgent(webView.context)\n"
-    "            // In Mobile/Tablet Mode: disable overview shrinking so responsive pages render at natural 100% width\n"
-    "            useWideViewPort = true\n"
-    "            loadWithOverviewMode = false\n"
-    "            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL\n"
-    "        }"
-)
-new_ua_branch = (
-    "if (desktopMode) {\n"
-    "            userAgentString = DESKTOP_USER_AGENT\n"
-    "            useWideViewPort = true\n"
-    "            loadWithOverviewMode = true\n"
-    "            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL\n"
-    "        } else {\n"
-    "            // Prefer Chrome-like UA without \"; wv\" to reduce Google \"browser not secure\" errors\n"
-    "            val raw = defaultMobileUa ?: WebSettings.getDefaultUserAgent(webView.context)\n"
-    "            userAgentString = if (raw.contains(\"wv\", ignoreCase = true) || raw.contains(\"Version/4.0\")) {\n"
-    "                CHROME_MOBILE_USER_AGENT\n"
-    "            } else {\n"
-    "                raw\n"
-    "            }\n"
-    "            useWideViewPort = true\n"
-    "            loadWithOverviewMode = false\n"
-    "            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL\n"
-    "        }"
-)
-if old_ua_branch in text:
-    text = text.replace(old_ua_branch, new_ua_branch, 1)
-    print("OK: sanitized mobile UA")
-else:
-    print("WARN: UA branch not found")
-
-# ---------------------------------------------------------------------------
 # 6) Draggable FAB modifier
 # ---------------------------------------------------------------------------
 old_mod = (
