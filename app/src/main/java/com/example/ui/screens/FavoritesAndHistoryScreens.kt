@@ -50,6 +50,7 @@ fun FavoritesScreen(
     onOpenSite: (SiteEntity) -> Unit,
     onToggleFavorite: (SiteEntity) -> Unit,
     onEditSite: (SiteEntity) -> Unit,
+    onAddToHomeScreen: (SiteEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -113,7 +114,8 @@ fun FavoritesScreen(
                         site = site,
                         onOpen = { onOpenSite(site) },
                         onToggleFavorite = { onToggleFavorite(site) },
-                        onEdit = { onEditSite(site) }
+                        onEdit = { onEditSite(site) },
+                        onAddToHomeScreen = { onAddToHomeScreen(site) }
                     )
                 }
             }
