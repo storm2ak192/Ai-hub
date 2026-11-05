@@ -24,6 +24,7 @@ jobs:
           python3 tools/patch_pinned_shortcuts.py
           python3 tools/patch_app_strings_link_chooser.py
           python3 tools/patch_link_chooser.py
+          python3 tools/patch_webview_improvements.py
 
       - name: Verify requested source features before build
         run: |
@@ -34,6 +35,9 @@ jobs:
           grep -q 'move_down_' app/src/main/java/com/example/ui/screens/SettingsScreen.kt
           ! grep -Eq 'DragHandle|detectDragGesturesAfterLongPress|draggingIndex' app/src/main/java/com/example/ui/screens/SettingsScreen.kt
           grep -q 'var pendingLinkUrl' app/src/main/java/com/example/ui/screens/BrowserScreen.kt
+          grep -q 'fun reloadPagePreservingSession()' app/src/main/java/com/example/ui/screens/BrowserScreen.kt
+          grep -q 'offscreenPreRaster = false' app/src/main/java/com/example/ui/screens/BrowserScreen.kt
+          grep -q 'sessionManager.persistActiveSession(currentSite, finalUrl)' app/src/main/java/com/example/ui/screens/BrowserScreen.kt
           grep -q 'pendingLinkUrl' app/src/main/java/com/example/ui/screens/BrowserScreen.kt
           grep -q 'onOpenMatchedSite' app/src/main/java/com/example/ui/AIHubApp.kt
           grep -q 'SecureExternalLinkDialog' app/src/main/java/com/example/ui/AIHubApp.kt

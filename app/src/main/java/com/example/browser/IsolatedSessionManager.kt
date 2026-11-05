@@ -85,21 +85,36 @@ class IsolatedSessionManager(
     /**
      * Flush shared cookies to disk (Google + current site) so login survives restart.
      */
-    suspend fun persistActiveSession(site: SiteEntity) = mutex.withLock {
+    suspend fun persistActiveSession(site: SiteEntity, currentUrl: String? = null) = mutex.withLock {
         var cookiesToSave: String? = null
 
         withContext(Dispatchers.Main.immediate) {
             try {
-                if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
-                    ProfileStore.getInstance().getProfile(SHARED_PROFILE)?.cookieManager?.flush()
+                // Read and flush the cookie jar belonging to the active WebView profile.
+                // Falling back to the process-wide manager keeps older WebView providers supported.
+                val activeCookieManager = if (
+                    WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)
+                ) {
+                    ProfileStore.getInstance().getProfile(SHARED_PROFILE)?.cookieManager
+                        ?: CookieManager.getInstance()
+                } else {
+                    CookieManager.getInstance()
                 }
 
-                val cm = CookieManager.getInstance()
-                val origins = (GOOGLE_ORIGINS + listOfNotNull(extractOrigin(site.url))).distinct()
+                val origins = (
+                    GOOGLE_ORIGINS +
+                        listOfNotNull(extractOrigin(site.url), currentUrl?.let(::extractOrigin))
+                    ).distinct()
+
                 cookiesToSave = origins.mapNotNull { origin ->
-                    cm.getCookie(origin)?.takeIf { it.isNotBlank() }
+                    activeCookieManager.getCookie(origin)?.takeIf { it.isNotBlank() }
                 }.joinToString("; ")
-                cm.flush()
+
+                activeCookieManager.flush()
+                // Also flush the legacy manager when supported, without clearing either cookie jar.
+                if (activeCookieManager !== CookieManager.getInstance()) {
+                    CookieManager.getInstance().flush()
+                }
             } catch (_: Throwable) {
             }
         }
