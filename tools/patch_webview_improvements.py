@@ -38,9 +38,12 @@ if text.count("reloadPagePreservingSession()") < 3:
     raise SystemExit("Expected safe reload helper plus both reload actions")
 
 # Persist the actual page origin too, not only the site's configured start URL.
+# The first occurrence is the main WebView callback, where finalUrl is defined.
+# Leave the popup callback using its default site-origin persistence.
 text = text.replace(
     "sessionManager.persistActiveSession(currentSite)",
-    "sessionManager.persistActiveSession(currentSite, finalUrl)"
+    "sessionManager.persistActiveSession(currentSite, finalUrl)",
+    1
 )
 
 # 2) Keep manual zoom as a per-site persisted preference and reapply it after each page load.
